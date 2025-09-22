@@ -1,0 +1,2083 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Readiness</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- jsPDF and html2canvas for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        /* Custom styles for the application */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        /* Style for the modal backdrop */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        /* Animation for modal fade-in */
+        .modal {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Custom button styling */
+        .btn {
+            @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:shadow-lg;
+        }
+        .btn-primary {
+            @apply bg-blue-600 hover:bg-blue-700 focus:ring-blue-500;
+        }
+        .btn-secondary {
+            @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500;
+        }
+        .btn-danger {
+             @apply bg-red-600 hover:bg-red-700 focus:ring-red-500;
+        }
+        .btn-info {
+             @apply bg-teal-600 hover:bg-teal-700 focus:ring-teal-500;
+        }
+
+        /* Status indicator styles */
+        .status-dot {
+            @apply w-3 h-3 rounded-full inline-block mr-2;
+        }
+
+        /* PDF specific styles */
+        .pdf-export h1, .pdf-export h2, .pdf-export h3 {
+            color: black;
+        }
+        .pdf-export .btn {
+            display: none;
+        }
+        /* Hint for jsPDF autoPaging */
+        .page-break-avoid {
+             page-break-inside: avoid;
+        }
+
+        /* Watermark style */
+        body::after {
+            content: "PROTOTYPE";
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 10rem;
+            color: rgba(0, 0, 0, 0.05);
+            font-weight: bold;
+            z-index: 9999;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Main Application Container -->
+    <div id="app" class="container mx-auto p-4 md:p-8 max-w-5xl">
+
+        <!-- Header -->
+        <header id="main-header" class="bg-white shadow-md rounded-lg p-4 mb-8">
+            <!-- Header content is rendered dynamically -->
+        </header>
+
+        <!-- Dynamic Content Area -->
+        <main id="content-area"></main>
+
+        <!-- Footer -->
+        <footer class="text-center mt-12 text-xs text-gray-500">
+            <p>© 2025 AI Readiness Project | Version 3.0</p>
+            <a href="mailto:feedback@example.com?subject=Feedback%20on%20AI%20Readiness%20Tool%20v3.0" class="mt-2 inline-block text-blue-600 hover:underline">Provide Feedback on this Tool</a>
+        </footer>
+    </div>
+
+    <!-- Modal Container -->
+    <div id="modal-container" class="fixed inset-0 z-50 hidden"></div>
+
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- DATA MODEL ---
+        
+        const controlLibrary = {
+            // Organisational Structures
+            'ORG_OVERSIGHT_GROUP': { 
+                text: "Single oversight group", 
+                tooltip: "A multidisciplinary governance group is known to have responsibility and expertise for identifying and analysing AI risks and benefits for the organisation. This includes reviewing new AI proposals and reports from technologies in ongoing use across the whole organisation, responsibilities can be appropriately delegated. The group reports directly into a top level leadership group to ensure close understanding of organisational priorities and efficient and authoritative decisions on the recommendations it makes.", 
+                specifics: [{text: "Terms of Reference (including membership - procurement, legal)"}],
+                example: "The health provider’s medical devices committee (with AI in portfolio) is able to advise the clinical governance committee that a priority problem for the organisation is not currently suitable to be addressed with AI, preventing misallocated time."
+            },
+            'ORG_TASK_FINISH': { 
+                text: "Task and finish groups", 
+                tooltip: "A process is in place to establish temporary, outcome-focused working groups to manage specific AI implementation projects or address particular risks as they arise.", 
+                specifics: [],
+                example: "A task and finish group is able to recommend that a proposed AI health technology for use in the emergency department is unlikely to be cost-effective, before significant resource is committed to its evaluation."
+            },
+            'ORG_ECOSYSTEM': { 
+                text: "External ecosystem connection", 
+                tooltip: "The organisation has established links with external bodies (e.g., academic institutions, national bodies, industry networks) to stay informed about best practices, emerging standards, and new evidence related to AI in healthcare.", 
+                specifics: [{text: "Membership of relevant networks"}, {text: "Subscription to newsletters"}],
+                example: "A clinical lead for AI adoption is aware of emerging evidence on the limitations of a class of AI health technologies from a national webinar, and is able to advise against its local adoption."
+            },
+            'ORG_DEV_COLLAB': { 
+                text: "Effective developer-provider collaboration", 
+                tooltip: "A clear, documented process for engaging with AI developers, including defined requirements for information sharing, technical support, and contractual obligations for both parties.", 
+                specifics: [{text: "Standard contract templates"}, {text: "Defined communication channels"}],
+                example: "A provider organisation looking to implement an AI clinical decision support tool has a clear point of contact at the developer who can advise them on interoperability requirements ahead of procurement."
+            },
+            'ORG_ETHICS': { 
+                text: "Ethics and public engagement", 
+                tooltip: "A dedicated ethics review process or committee is available to assess the ethical implications of new AI technologies, including fairness, bias, and patient autonomy. There is also a strategy for engaging with patients and the public about the use of AI.", 
+                specifics: [{text: "Ethics committee Terms of Reference"}, {text: "Patient engagement strategy document"}],
+                example: "An AI oversight group make their recommendation on the adoption of an AI health technology on the basis of findings from a series of focus groups with patients and public representatives."
+            },
+            'ORG_PROCESSES': { 
+                text: "Standardised processes", 
+                tooltip: "The organisation has integrated AI considerations into its existing standardised processes for procurement, risk management, and quality improvement, ensuring AI is not managed in a silo.", 
+                specifics: [
+                    {text: "Updated procurement policy"}, 
+                    {text: "AI-specific risk assessment templates"}, 
+                    {text: "DCB0160 compliance*", url: "https://digital.nhs.uk/data-and-information/information-standards/governance/latest-activity/standards-and-collections/dcb0160-clinical-risk-management-its-application-in-the-deployment-and-use-of-health-it-systems/"}, 
+                    {text: "Data Protection Impact Assessment (DPIA)", url: "https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/when-do-we-need-to-do-a-dpia/"}, 
+                    {text: "Digital Technology Assessment Criteria (DTAC)*", url: "https://transform.england.nhs.uk/key-tools-and-info/digital-technology-assessment-criteria-dtac/"}
+                ],
+                example: "The procurement team at a provider organisation use a standardised checklist for AI health technologies which includes a requirement for the developer to provide their DCB0129 clinical safety case report."
+            },
+            // People & Culture
+            'WF_ENGAGEMENT_POLICY': { 
+                text: "Employee engagement and AI policy", 
+                tooltip: "A formal policy or strategy is in place that outlines the organisation's approach to involving staff in AI adoption, communicating changes, and managing the impact on roles and workflows.", 
+                specifics: [{text: "AI workforce strategy document"}, {text: "Internal communications plan"}],
+                example: "A provider organisation is able to direct staff to their intranet page on AI when they have a query on how a new AI technology will impact their role."
+            },
+            'WF_TRAINING_DEV': { 
+                text: "Staff training and development", 
+                tooltip: "A programme to ensure all relevant staff receive appropriate training on the specific AI tool being deployed, general principles of AI in healthcare, and their roles and responsibilities. This is updated as required.", 
+                specifics: [{text: "Training needs analysis"}, {text: "Register of completed training"}],
+                example: "All staff who will be using a new AI health technology are required to complete an online training module and assessment before they are granted access to use it in their clinical workflow."
+            },
+            'WF_CAPACITY': { 
+                text: "Workforce capacity to sustain responsible use", 
+                tooltip: "Sufficient staff time and resources are allocated for the ongoing management of the AI technology, including clinical oversight, performance monitoring, and incident investigation.", 
+                specifics: [{text: "Updated job plans"}, {text: "Business case with resource allocation"}, {text: "Clinical Safety Officer (CSO)*"}],
+                example: "The job plan of a clinical lead for a new AI health technology has sessions allocated to the review of its performance and the investigation of any incidents that arise from its use."
+            },
+            'WF_ACKNOWLEDGEMENT': { 
+                text: "Acknowledgement of key staff", 
+                tooltip: "Active steps are taken to incentivise staff who an AI technology’s adoption and use depends upon, but may not otherwise benefit. Distributing credit beyond those who most visibly champion AI implementation or use and those whose experience of work is improved by the technology can promote collaborative working across professional groups and prevent adversarial relationships between colleagues. These incentives can take the form of career opportunities, co-authorship of academic reports, or employee award or acknowledgement schemes.", 
+                specifics: [{text: "Local award schemes"}, {text: "Inclusion in personal development reviews"}],
+                example: "The critical contribution of the information governance officer to the implementation of an AI technology was acknowledged by the clinical lead through an invitation to co-author an academic paper about the evaluation and submitting a GREAT-ix form internally."
+            },
+            // Problem & Solution
+            'PROB_NEEDS_LED': { 
+                text: "Needs-led innovation", 
+                tooltip: "A systematic process is used to ensure that any considered AI technology addresses a clearly defined clinical or operational need, and that an options appraisal (including non-AI solutions) has been conducted.", 
+                specifics: [{text: "Needs assessment documentation"}, {text: "Completed options appraisal report"}],
+                example: "An AI oversight group is able to identify that a proposed AI health technology does not address a key clinical need for the organisation and advises against its adoption."
+            },
+            'PROB_AMBASSADOR': { 
+                text: "Workforce ambassador leading adoption", 
+                tooltip: "A respected clinical or operational leader is identified to champion the AI project, acting as a key point of contact, providing expertise, and helping to build trust and buy-in among peers.", 
+                specifics: [{text: "Nominated individual in project plan"}],
+                example: "A clinical lead for a new AI health technology is able to provide reassurance to their colleagues about the safety and effectiveness of the tool, based on their own experience and understanding of the evidence."
+            },
+            // Adoption & Infrastructure
+            'ADOPT_INFRA': { 
+                text: "Digital infrastructure and integration", 
+                tooltip: "A thorough technical assessment has been completed to confirm that the organisation's digital infrastructure (e.g., network, storage, computing power) can support the AI technology and that it can be safely integrated with existing systems like the EPR.", 
+                specifics: [{text: "Technical due diligence report"}, {text: "Integration test plan"}],
+                example: "The IT team at a provider organisation are able to confirm that the existing network infrastructure can support the data transfer requirements of a new AI health technology."
+            },
+            'ADOPT_FEEDBACK': { 
+                text: "Mechanisms for early user feedback", 
+                tooltip: "A structured system for collecting, reviewing, and acting on feedback from end-users during the initial pilot and deployment phases of an AI technology.", 
+                specifics: [{text: "User feedback forms/surveys"}, {text: "Minutes from user group meetings"}],
+                example: "A pilot of a new AI health technology includes a series of user workshops to gather feedback on the user interface and workflow integration, leading to a number of design changes before a wider rollout."
+            },
+            // Evaluation & Learning
+            'EVAL_ASSET_REG': { 
+                text: "Information asset register", 
+                tooltip: "The organisation maintains a comprehensive register of all information assets, including AI models and their associated datasets. The register details owners, locations, and usage, which is crucial for governance and security.", 
+                mandatory: true,
+                specifics: [{text: "Link to the information asset register", url: "https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/accountability-framework/records-management-and-security/information-asset-register/"}],
+                example: "An information governance lead is able to identify the owner of an AI health technology and its associated data assets from the information asset register, in order to respond to a freedom of information request."
+            },
+            'EVAL_NON_INTERVENTIONAL': { 
+                text: "Non-interventional evaluation of performance", 
+                tooltip: "Before live clinical use, a plan is in place to evaluate the AI's performance on a local, retrospective dataset to validate the developer's claims and check for any unexpected performance issues in the local context.", 
+                specifics: [{text: "Evaluation protocol"}, {text: "Statistical analysis plan"}],
+                example: "A retrospective evaluation of an AI health technology on local data identifies that it performs less well on a specific patient subgroup, leading to a decision to not use it for that subgroup in the live clinical workflow."
+            },
+            'EVAL_PERF_MONITOR': { 
+                text: "Sustained performance monitoring", 
+                tooltip: "A long-term plan for regular, ongoing monitoring of the AI's performance to detect any degradation over time (model drift) or changes in safety and effectiveness.", 
+                specifics: [{text: "Post-market surveillance plan"}, {text: "Defined performance metrics and thresholds"}],
+                example: "A dashboard that accompanied a diagnostic AI health technology shows that case finding has decreased by 20% in the last month, having been steady over the past year. This leads the AI oversight group to suspend its use and initiate an algorithmic audit."
+            },
+            'EVAL_COMMS': { 
+                text: "Communication post-implementation", 
+                tooltip: "A strategy for communicating the results of local evaluations and ongoing monitoring to all relevant stakeholders, including clinical staff, management, and patients, to maintain transparency and trust.", 
+                specifics: [{text: "Internal and external communications plan"}],
+                example: "An AI segmentation tool for radiotherapy planning presents users with the option to flag concerns with outputs on a specific scan in their workflow. The clinical lead periodically reviews flagged scans in a failure-modes and effect analysis which they present at the departmental audit meeting."
+            }
+        };
+
+        const assessmentData = {
+            domains: [
+                { id: 0, name: "Workforce", situations: [
+                    { id: 0, title: "Insufficient competency and collaboration among staff", description: "Staff require skill and knowledge relating to AI, as well as digital and change management skills. These requirements differ depending on individuals’ roles in AI adoption and use, the AI technology itself, and wider contextual factors. Without collaborative work from many staff with complimentary competencies and roles, AI health technologies are more likely to be used inappropriately.", example: "A member of staff with responsibility for evaluating AI health technologies for procurement is unaware of the medical device classification associated with its intended use.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_ECOSYSTEM', 'ORG_PROCESSES', 'WF_TRAINING_DEV', 'WF_CAPACITY', 'PROB_AMBASSADOR', 'WF_ACKNOWLEDGEMENT']},
+                    { id: 1, title: "Low staff acceptability", description: "Staff may not perceive a compelling case for the introduction of AI in a health system. This may be due to specialised knowledge, may relate to individuals’ concerns such as identity, role change or social impacts, or may relate to limitations in local evidence generation and dissemination.", example: "A clinician does not believe that an AI clinical decision support tool improves the speed or accuracy of their decision and avoids its use in their practice.", controls: ['ORG_OVERSIGHT_GROUP', 'PROB_NEEDS_LED', 'WF_TRAINING_DEV', 'PROB_AMBASSADOR', 'ADOPT_FEEDBACK', 'EVAL_NON_INTERVENTIONAL', 'EVAL_PERF_MONITOR', 'EVAL_COMMS', 'WF_ACKNOWLEDGEMENT']},
+                    { id: 2, title: "Technology-dependent behaviour", description: "Reliance on AI for a certain task can lead to reduced exposure and deskilling so that staff can no longer perform that task without AI. This can leave workflows vulnerable to sudden unavailability of the AI health technology. The availability of AI outputs may also lead to conscious or unconscious changes in the weighting users place on their own judgements. These changes in staff behaviour may affect performance positively or negatively.", example: "A clinician develops a high level of trust for the output of an AI decision support tool over time and stops cognitially engaging with the task, effectively removing human oversight.", controls: ['ORG_PROCESSES', 'WF_TRAINING_DEV', 'EVAL_PERF_MONITOR', 'EVAL_COMMS']},
+                    { id: 3, title: "Lack of Scalable sustainable workforce", description: "Safe and effective use of AI health technologies depends upon continual oversight from staff with relevant skills. This need is hard to anticipate without prior experience of post-deployment management of AI, and can be particularly hard to incentivise when use of an AI technology benefits a separate part of the workforce to the part which owns risk or monitoring responsibility. Without sustained support from an appropriately resourced team, AI use can persist despite inadequate oversight.", example: "A radiologist’s time was funded by an external research grant during the initial year following the implementation of a diagnostic chest x-ray AI technology. Following the end of the grant, no clinician’s job plan contains time to identify and review false negative cases.", controls: ['ORG_DEV_COLLAB', 'WF_TRAINING_DEV', 'WF_CAPACITY', 'ADOPT_INFRA', 'EVAL_ASSET_REG', 'WF_ACKNOWLEDGEMENT']}
+                ]},
+                { id: 1, name: "Operational", situations: [
+                    { id: 0, title: "Unclear allocation of responsibilities", description: "Effective adoption and ongoing use of AI health technology depends upon specific personnel with appropriate expertise. This includes Clinical Safety, Information Governance, Technical Assurance, Cyber Security, Finance and Legal. These responsibilities are often shared between the developer, the adopter and other organisations. Unclear allocation of responsibilities can lead to them being neglected.", example: "A clinical end user is unclear on where the responsibility for post market surveillance activities lies which prevents them from effectively raising a safety concern.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_TASK_FINISH', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'WF_ENGAGEMENT_POLICY', 'WF_CAPACITY', 'PROB_AMBASSADOR', 'EVAL_ASSET_REG']},
+                    { id: 1, title: "Local technological infeasibility", description: "AI health technologies commonly present multiple dependencies on existing digital systems in the adopting organisation. Integration, capacity, or interoperability challenges with any existing systems may threaten the feasibility of AI adoption.", example: "An AI health technology is hosted on premise, but its processing of data during use requires a significant proportion of locally available computational capacity, slowing down other vital processes.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_ECOSYSTEM', 'ORG_DEV_COLLAB', 'PROB_AMBASSADOR', 'ADOPT_INFRA', 'EVAL_ASSET_REG', 'EVAL_NON_INTERVENTIONAL']},
+                    { id: 2, title: "Withdrawal of a technology in use", description: "AI health technologies may be supplied by in-house teams that depend on one or two individual or small external companies seeking access to a global market. The initial use of these technologies may only be possible due to short term funding from grants or national commissioning initiatives. These factors may lead to sudden unplanned unavailability to an AI health technology.", example: "The only developer of an AI health technology to identify cardiac arrhythmias from telemetry regulated for clinical use goes into administration. Use of the technology cannot be sustained by a customer healthcare provider and its arrhythmia pathway must change suddenly.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'WF_TRAINING_DEV', 'PROB_NEEDS_LED', 'EVAL_ASSET_REG', 'EVAL_COMMS']},
+                    { id: 3, title: "Compromised data integrity", description: "AI health technologies may introduce cyber vulnerabilities that permit bad actors to corrupt the accuracy of data. This reduction of data integrity may also happen within routine use of AI health technologies if they modify existing data or create new data incorrectly. Reduced data integrity can result in negative patient outcomes, especially where it informs decision making.", example: "An ambient voice transcription AI tool has read/write access to the electronic patient record. The tool autonomously modifies patient records and adds an incorrect allergy status from a “hallucination” in a clinical consultation.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'WF_TRAINING_DEV', 'WF_CAPACITY', 'ADOPT_INFRA']},
+                    { id: 4, title: "Data inaccessibility", description: "AI health technologies may introduce cyber vulnerabilities from externally developed code and data hosting in cloud environments outside of the direct control of the provider organisations. These vulnerabilities may permit the introduction of malware or instabilities, which prevents a healthcare provider organisation from accessing data needed for service delivery.", example: "A cybercriminal exploits an administrator’s weak password for a cloud-based platform to gain access to a system and remove access to data for all staff at the healthcare provider organisation.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'WF_TRAINING_DEV', 'WF_CAPACITY', 'ADOPT_INFRA']}
+                ]},
+                { id: 2, name: "Financial", situations: [
+                    { id: 0, title: "Poor market position", description: "The lower maturity of the market for AI health technology can leave provider organisations dependent on a developer with few or no competitors on the market. This can create a poor negotiating position for healthcare providers at contract renegotiations, particularly if business continuity has become AI-dependent, threatening the sustainability of return on investment", example: "An AI health technology is fully integrated within clinical workflows but its contract was paid for with central government funding and has now come up for renewal. There are no other AI health technologies on the market which meet local interoperability needs and local users depend upon the current technology for routine practice.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_ECOSYSTEM', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'WF_TRAINING_DEV']},
+                    { id: 1, title: "Uncertain business case", description: "Limited precedent for AI adoption and the variable performance of AI health technologies between settings makes accurate estimation of the value to be returned challenging. This is exacerbated by political pressure to adopt and the hidden costs of AI implementation and use. This may result in inappropriate avoidance or commitment to AI technologies by provider organisations, preventing the full potential of their available resources from being realised.", example: "The level of auditing required in order to ensure an AI system is continuing to perform safely leads to significant recurrent costs from local consultant and analyst time, removing the predicted cost-saving.", controls: ['ORG_TASK_FINISH', 'ORG_ECOSYSTEM', 'PROB_NEEDS_LED', 'ADOPT_INFRA', 'EVAL_NON_INTERVENTIONAL', 'WF_TRAINING_DEV']},
+                    { id: 2, title: "Liability from patient and staff harm", description: "Healthcare providers have statutory duties to both patients and staff. AI health technologies may contribute to breaches of these duties, including breaches to a duty of care or a duty of confidentiality, either internally or externally (i.e.through new vendors unfamiliar with medico-legal responsibilities). These breaches may attract successful legal challenges against provider organisations who are unlikely to be able to distribute responsibility toward the AI developer without explicit contractual agreements. Due to the innovative elements of these technologies, organisations, or individuals may not be covered by their current liability coverage, and additionally represent significant financial risk.", example: "A patient brings a claim of medical negligence against a provider organisation for a delayed breast cancer diagnosis from a pathway using AI clinical decision support. The healthcare provider held the duty of care which was claimed to have been breached and the contract with the AI developer did not require them to contribute to medical indemnity.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'ORG_ETHICS', 'WF_ENGAGEMENT_POLICY', 'WF_CAPACITY', 'ADOPT_FEEDBACK', 'WF_TRAINING_DEV', 'EVAL_PERF_MONITOR']},
+                    { id: 3, title: "Underestimating contribution in kind", description: "Clinical evidence has commercial value for developers, which is hard to quantify. Provider organisations commit internal resources to generating this value through use of data assets and staff time through evaluation and use of AI health technologies. Developer organisations also commit resources to this process, but may not share the value generated with providers without contracts or incentives agreed in advance.", example: "A cross-functional team at a hospital publish positive findings from a service evaluation they performed of ambient voice technology deployment in outpatient clinics. This publication led to purchases from other hospitals who chose to implement the technology without further evaluation and with the same financial terms offered to the first hospital.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'WF_ACKNOWLEDGEMENT', 'WF_TRAINING_DEV']},
+                    { id: 4, title: "Misdirected focus and resource", description: "Anticipating the value an AI health technology will return is challenging. If a compelling case for a technology cannot be made, its adoption may represent a misdirection of focus and resource. This may be due to political pressure to adopt, hidden costs of implementation, or limited precedent for AI adoption", example: "A provider organisation purchases a commercially available AI health technology for use in their radiology department. Hidden costs associated with its implementation and use, including training and ongoing performance monitoring, prevent the organisation from realising the predicted return on investment.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_ECOSYSTEM', 'PROB_NEEDS_LED']}
+                ]},
+                { id: 3, name: "External", situations: [
+                    { id: 0, title: "Regulatory or legal non-compliance", description: "There are a number of regulatory and legal obligations that apply to AI adoptions that are often unfamiliar to both healthcare provider and developer organisations. Laws, regulations, standards and guidance relevant to AI continue to evolve and cover a wide range of domains.The potential harms of non-compliance vary, but can be clinical, financial or reputational.", example: "An AI health technology for analysing chest X-rays for automating clinical decisions is sold to a trust, but is in breach of current legislation regarding ionising radiation therefore it cannot be used.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_ECOSYSTEM', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'WF_TRAINING_DEV', 'WF_ENGAGEMENT_POLICY', 'EVAL_PERF_MONITOR']},
+                    { id: 1, title: "Low public accessibility and acceptability", description: "Public perception of AI varies over time and is influenced by sources outside of healthcare. If there is low public and patient acceptability for AI this can erode trust for any AI-enabled healthcare pathway or the provider(s) which hosts it. This may lead patients to object to having their data processed by AI for their care delivery, or lower their engagement with care. The introduction of AI health technologies also has the potential to exacerbate digital exclusion from healthcare.", example: "Recent reports of a breach of sensitive customer data held by a prominent technology company prompt concerns from a patient reading the footer of their hospital clinic letter stating that ‘artificial intelligence contributed to the generation of this letter’.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_ETHICS', 'ORG_PROCESSES', 'WF_ENGAGEMENT_POLICY', 'EVAL_NON_INTERVENTIONAL', 'EVAL_COMMS', 'EVAL_PERF_MONITOR']},
+                    { id: 2, title: "Breaches of data confidentiality and permission for use", description: "AI health technologies may introduce cyber vulnerabilities that lead to the access or use of personal data outside of the permission of data subjects or their healthcare provider organisation (data controller). Routine use of AI often requires data access for third parties (data processors). Unclear communication between data controllers and processors may also lead to inappropriate access or use of personal data.", example: "The data sharing agreement with the manufacturer of an AI health technology is not clear, leading to the manufacturer using data to re-train their product without appropriate permissions in place.", controls: ['ORG_OVERSIGHT_GROUP', 'ORG_ETHICS', 'WF_ENGAGEMENT_POLICY', 'ADOPT_INFRA', 'WF_TRAINING_DEV']}
+                ]},
+                { id: 4, name: "Clinical", situations: [
+                    { id: 0, title: "Unanticipated Secondary effects", description: "An AI health technology may affect patient throughput, staff behaviour, resource availability or detection rates leading to additional strain being placed in different areas of the system. These secondary effects may include workforce displacement, pathway disruption, increased demand, increased environmental impact or location of provision of care.", example: "An AI health technology for sepsis detection generates few false negatives but many false positives, leading to a demand for clinical reviews. This increases ‘alert fatigue’ and exceeds departmental capacity for clinical reviews", controls: ['ORG_OVERSIGHT_GROUP', 'ADOPT_FEEDBACK', 'EVAL_PERF_MONITOR', 'ORG_ECOSYSTEM']},
+                    { id: 1, title: "Underperformance in the local context", description: "The effectiveness of AI health technologies can be sensitive to a range of socio technical factors in the local context. Evidence of effectiveness and safety from one context cannot be assumed to generalise well to another, even within the same organisation.", example: "An audit of a local AI health technology identifies lower aggregate performance across the target population than reported in published real-world evidence from another provider despite having used the same method.", controls: ['ORG_TASK_FINISH', 'ORG_PROCESSES', 'ADOPT_FEEDBACK', 'EVAL_NON_INTERVENTIONAL', 'ORG_DEV_COLLAB', 'WF_TRAINING_DEV']},
+                    { id: 2, title: "Underperformance for population subgroup(s)", description: "Data sets used to train and evaluate AI health technologies are not always representative of the populations they are used for and characteristics of these data sets are often not publicly available for appraisal. This may lead to systematic underperformance on specific subgroups in real-world use, lowering the quality of care they receive relative to other subgroups.", example: "An AI health technology to triage retinal disease generates more false negatives in short-sighted patients than in patients who do not require glasses.", controls: ['ORG_TASK_FINISH', 'ORG_ECOSYSTEM', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'ORG_ETHICS', 'ADOPT_FEEDBACK', 'EVAL_NON_INTERVENTIONAL']},
+                    { id: 3, title: "Reduction of performance over time", description: "The performance of AI health technologies depends upon a range of socio-technical factors which change over time, even within the same provider organisation. Changes in the way clinicians interact with the AI, the way data are captured or pre-processed or characteristics of the population, can all lead to sudden or gradual changes in AI safety and effectiveness", example: "An upgrade in the software driving the operation of a scanner, leads to a sudden drop in performance of an AI health technology used in mammography screening.", controls: ['ORG_ECOSYSTEM', 'ORG_DEV_COLLAB', 'ORG_PROCESSES', 'WF_CAPACITY', 'ADOPT_FEEDBACK', 'EVAL_PERF_MONITOR', 'EVAL_COMMS', 'WF_TRAINING_DEV']}
+                ]}
+            ]
+        };
+
+        // --- APPLICATION STATE ---
+        // This object tracks the current state of the application.
+        let appState = {
+            currentView: 'dashboard', // Default view, may be overridden by init logic
+            currentDomainId: null,
+            currentSituationIndex: 0,
+            answers: {}, // { 'd0-s0': { aware: 'yes', ..., selectedControls: new Set(), controlSpecifications: {'ORG_ID': 'text'} }, ... }
+            returnView: null,
+            highlightControl: null,
+            highlightSituation: null,
+            email: '',
+            aiDescription: '',
+            institution: '',
+            shareContact: false
+        };
+
+        // --- DOM ELEMENTS & HELPERS ---
+        const contentArea = document.getElementById('content-area');
+        const modalContainer = document.getElementById('modal-container');
+        const mainHeader = document.getElementById('main-header');
+        let debounceTimeout;
+
+
+        // --- RENDERING FUNCTIONS ---
+        /**
+         * Renders the main application header with dynamic user info.
+         */
+        function renderHeader() {
+            const emailDisplay = appState.email || 'Not Provided';
+            const institutionDisplay = appState.institution || 'Not Provided';
+             mainHeader.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div class="h-16 w-40 bg-gray-200 flex items-center justify-center text-gray-500 text-sm rounded">AI-R Logo Placeholder</div>
+                     <div class="flex flex-col items-end">
+                        <div class="h-10 w-80 bg-gray-200 flex items-center justify-center text-gray-500 text-sm rounded mb-2">Partner Logos Placeholder</div>
+                        <div class="text-right text-sm">
+                            <p>${emailDisplay}</p>
+                            <p><span class="font-semibold">Organisation:</span> ${institutionDisplay}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Renders the introduction page.
+         */
+        function renderIntroduction() {
+            renderHeader();
+            appState.currentView = 'introduction';
+            contentArea.innerHTML = `
+                <div class="bg-white shadow-md rounded-lg p-6">
+                    <div class="flex justify-between items-center mb-6 border-b pb-6">
+                         <div class="h-20 w-48 bg-gray-200 flex items-center justify-center text-gray-500 rounded">AI-R Logo Placeholder</div>
+                         <div class="h-12 w-96 bg-gray-200 flex items-center justify-center text-gray-500 rounded">Partner Logos Placeholder</div>
+                    </div>
+                    <h2 class="text-2xl font-bold mb-4">Welcome to the AI Readiness Tool</h2>
+
+                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-lg mb-6">
+                         <p class="font-semibold">Optimal Viewing Experience:</p>
+                         <p class="text-sm">For the best experience, please use a desktop computer or tablet. This tool is not optimised for mobile devices and may not render correctly on smaller screens.</p>
+                    </div>
+
+                    <p class="mb-4 text-gray-700">This tool is designed to help your healthcare organisation assess its preparedness for implementing new Artificial Intelligence (AI) technologies. It provides a structured way to think about potential causes of harm from AI use. These causes are split across various domains. The aim is to identify the controls you have in place to manage the associated risks for implementing a new AI technology, and any gaps. We recommend completing it with a proposed AI tool in mind, as different AI products pose different challenges.</p>
+                    <p class="mb-4 text-gray-700">You will be guided through a series of potential causes that can lead to harm through the deployment of AI. For each one, you will be asked to consider hazards and your organisation's existing controls to manage this. The controls may already exist as part of other processes in your organisation. 
+Following completion of the assessment you will be provided with a report highlighting areas of readiness and potential unreadiness, as well as signposting to resources which may help improve your organisations readiness to utilise the proposed AI tool.</p>
+                    
+                    <div class="border-t pt-4 mt-6">
+                        <h3 class="text-xl font-semibold mb-4">Before You Start</h3>
+                        <p class="mb-4 text-sm text-gray-600">Please provide the following details. This information will be collected anonymously and used solely for the monitoring and improvement of this tool.</p>
+                        <div class="space-y-4">
+                             <div>
+                                <label for="institution-search" class="block text-sm font-medium text-gray-700">Your Institution Name (search by name)</label>
+                                <div class="mt-1 relative">
+                                    <input type="text" id="institution-search" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${appState.institution ? 'hidden' : ''}" placeholder="e.g. University Hospitals Birmingham" onkeyup="searchOrganisations(this.value)" autocomplete="off">
+                                    <div id="institution-search-results" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 shadow-lg max-h-60 overflow-y-auto hidden"></div>
+                                </div>
+                                <div id="selected-institution-container" class="mt-2 ${appState.institution ? '' : 'hidden'}">
+                                    <p class="text-sm text-gray-600">Selected: <strong id="selected-institution-name" class="text-gray-900">${appState.institution}</strong>
+                                        <button class="ml-2 text-xs text-blue-600 hover:underline" onclick="clearInstitutionSelection()">Change</button>
+                                    </p>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="user-email" class="block text-sm font-medium text-gray-700">Your Email Address</label>
+                                <input type="email" id="user-email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="you@example.com" oninput="handleUserInfoChange(event)" value="${appState.email || ''}">
+                                <p id="email-error" class="text-red-500 text-xs mt-1 hidden">Please enter a valid email address.</p>
+                            </div>
+                            <div>
+                                <label for="ai-description" class="block text-sm font-medium text-gray-700">Briefly describe the AI you are considering deploying (please include brand names and scale of deployment)</label>
+                                <textarea id="ai-description" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="e.g., 'PathAI Diagnostics v2.1' for all histopathology reporting across the Trust." oninput="handleUserInfoChange(event)">${appState.aiDescription || ''}</textarea>
+                            </div>
+                            <div class="relative flex items-start">
+                                <div class="flex h-5 items-center">
+                                    <input id="share-contact" name="share-contact" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" onchange="handleUserInfoChange(event)" ${appState.shareContact ? 'checked' : ''}>
+                                </div>
+                                <div class="ml-3 text-sm">
+                                    <label for="share-contact" class="font-medium text-gray-700">Share contact details</label>
+                                    <p class="text-gray-500">Allow other users from your organisation to see that you have used this tool and your e-mail address.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-4 mt-6">
+                         <h3 class="text-lg font-semibold">Understanding the Language Used</h3>
+                         <p class="text-sm text-gray-600 mb-2">If you are unfamiliar with the terminology used in this tool, a brief explainer can be found below.</p>
+                         <button id="language-toggle" class="text-blue-600 hover:underline text-sm" onclick="toggleLanguageExplanation()">Show Explanation ▼</button>
+                         <div id="language-explanation" class="hidden mt-4 border p-4 rounded-lg bg-gray-50">
+                             <p class="mb-2"><strong class="font-semibold">Cause:</strong> A situation or event that has the potential to lead to harm. In our example, a 'bird strike' is a cause.</p>
+                             <p class="mb-2"><strong class="font-semibold">Hazard:</strong> The point at which there is an immediate danger. This is the moment where control over the situation is lost. In our example, the hazard is 'engine failure'.</p>
+                             <p class="mb-2"><strong class="font-semibold">Harm:</strong> The negative outcome or damage that results from the hazard. In our example, the harm is an 'aircraft crash'.</p>
+                             <p class="mb-4"><strong class="font-semibold">Control:</strong> A measure or action that is taken to manage risk. Controls can either prevent a cause from leading to a hazard (e.g., bird-scaring systems at airports) or mitigate the impact after a hazard occurs (e.g., pilot training for engine failure).</p>
+                            
+                             <!-- Bowtie Diagram Example -->
+                             <div id="bowtie-diagram" class="mt-4 pt-4 border-t">
+                                <h4 class="font-semibold text-center mb-4 text-gray-700">Example Flow: Cause to Harm (Aviation)</h4>
+                                <div class="flex items-center justify-between text-xs text-center text-gray-700">
+                                    <!-- Cause -->
+                                    <div class="flex flex-col items-center w-1/5">
+                                        <div class="p-2 bg-yellow-100 border border-yellow-300 rounded w-full">
+                                            <p class="font-bold">CAUSE</p>
+                                            <p class="mt-1 text-gray-600">Bird Strike</p>
+                                        </div>
+                                    </div>
+                            
+                                    <!-- Arrow -->
+                                    <div class="flex-shrink-0 mx-2 text-center">
+                                        <div class="text-3xl text-blue-300">→</div>
+                                        <p class="text-xs text-gray-500">prevent</p>
+                                    </div>
+
+                                    <!-- Event (Hazard) -->
+                                    <div class="flex flex-col items-center w-1/5">
+                                        <div class="p-3 bg-red-600 text-white rounded-full w-24 h-24 flex items-center justify-center font-bold shadow-lg">
+                                            HAZARD<br>(Engine Failure)
+                                        </div>
+                                    </div>
+                            
+                                    <!-- Arrow -->
+                                    <div class="flex-shrink-0 mx-2 text-center">
+                                        <div class="text-3xl text-green-400">→</div>
+                                         <p class="text-xs text-gray-500">mitigate</p>
+                                    </div>
+                            
+                                    <!-- Harm -->
+                                    <div class="flex flex-col items-center w-1/5">
+                                        <div class="p-2 bg-red-100 border border-red-300 rounded w-full">
+                                            <p class="font-bold">HARM</p>
+                                            <p class="mt-1 text-gray-600">Aircraft Crash</p>
+                                        </div>
+                                    </div>
+                                </div>
+                             </div>
+
+                         </div>
+                    </div>
+
+                    <div class="mt-8 flex justify-between items-center">
+                        <button class="btn btn-secondary" onclick="downloadAssessmentGuidePDF()">Download Assessment Guide</button>
+                        <button id="proceed-button" class="btn btn-primary text-lg py-3 px-6" onclick="renderDashboard()">Proceed to Assessment Dashboard</button>
+                    </div>
+                </div>
+            `;
+            // Check email validity on render
+            const emailInput = document.getElementById('user-email');
+            if (emailInput && emailInput.value && !validateEmail(emailInput.value)) {
+                const emailError = document.getElementById('email-error');
+                const proceedButton = document.getElementById('proceed-button');
+                if(emailError) emailError.classList.remove('hidden');
+                if(proceedButton) proceedButton.disabled = true;
+                emailInput.classList.add('border-red-500');
+            }
+        }
+
+        /**
+         * Renders the main dashboard view.
+         */
+        function renderDashboard() {
+            renderHeader();
+            appState.currentView = 'dashboard';
+            let completedDomains = 0;
+            const domainRows = assessmentData.domains.map(domain => {
+                const situationsInDomain = domain.situations.length;
+                let answeredSituations = 0;
+                for (let i = 0; i < situationsInDomain; i++) {
+                    const answer = appState.answers[`d${domain.id}-s${i}`];
+                    if (answer && answer.causesHarm !== null) {
+                        answeredSituations++;
+                    }
+                }
+                
+                let statusText = 'Not Started';
+                let statusColor = 'bg-gray-400';
+                if (answeredSituations > 0 && answeredSituations < situationsInDomain) {
+                    statusText = 'In Progress';
+                    statusColor = 'bg-yellow-500';
+                } else if (answeredSituations === situationsInDomain) {
+                    statusText = 'Complete';
+                    statusColor = 'bg-green-500';
+                    completedDomains++;
+                }
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-4 font-medium">${domain.id + 1}. ${domain.name}</td>
+                        <td class="p-4"><span class="status-dot ${statusColor}"></span>${statusText}</td>
+                        <td class="p-4">${answeredSituations} / ${situationsInDomain}</td>
+                        <td class="p-4 text-right">
+                            <button class="btn btn-primary" onclick="startAssessment(${domain.id})">
+                                <span>${answeredSituations > 0 ? 'Continue' : 'Start'}</span>
+                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            contentArea.innerHTML = `
+                <div class="bg-white shadow-md rounded-lg p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">Your Organisation's Preparedness Assessment</h2>
+                        <div class="flex items-center space-x-2">
+                            <button class="btn btn-info" onclick="renderIntroduction()">
+                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"></path>
+                                </svg>
+                                Introduction
+                            </button>
+                            <button class="btn btn-info" onclick="goToReferencePageFromDashboard()">
+                                 <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"></path>
+                                </svg>
+                                Controls Reference
+                            </button>
+                            <button class="btn btn-info" onclick="renderCausesReferencePage()">
+                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"></path>
+                                </svg>
+                                Causes Reference
+                            </button>
+                             <button class="btn btn-info" onclick="renderCaseStudyPage()">
+                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                View Case Study
+                            </button>
+                        </div>
+                    </div>
+                    <p class="mb-6 text-gray-600">This tool is designed to help your healthcare organisation assess its preparedness for implementing new Artificial Intelligence (AI) technologies. It provides a structured way to think about potential causes of harm from AI use. These causes are split across various domains. The aim is to identify the controls you have in place to manage the associated risks for implementing a new AI technology, and any gaps. We recommend completing it with a proposed AI tool in mind, as different AI products pose different challenges.</p>
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="p-4 font-semibold">Domain</th>
+                                <th class="p-4 font-semibold">Status</th>
+                                <th class="p-4 font-semibold">Progress</th>
+                                <th class="p-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody>${domainRows}</tbody>
+                    </table>
+                    <div class="mt-8 text-center">
+                        <button class="btn btn-primary text-lg py-3 px-6" onclick="renderReport()">
+                            <span>Generate Preparedness Report</span>
+                            <svg class="w-6 h-6 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        </button>
+                        <a href="#" class="ml-4 text-sm text-blue-600 hover:underline" onclick="event.preventDefault(); renderExampleReport();">View Example Report</a>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Renders the assessment view for a specific domain and situation.
+         */
+        function renderAssessment() {
+            renderHeader();
+            appState.currentView = 'assessment';
+            const domain = assessmentData.domains[appState.currentDomainId];
+            const situation = domain.situations[appState.currentSituationIndex];
+            const answerKey = `d${domain.id}-s${situation.id}`;
+            const currentAnswer = getOrCreateAnswer(answerKey);
+
+            const showNaReason = currentAnswer.aware === 'na';
+            const naReasonText = currentAnswer.naReason || '';
+            const isPlaceholderReason = naReasonText === "No credible harm identified";
+
+            // --- Section Complete Notice ---
+            let sectionCompleteHtml = '';
+            const isLastSituationInDomain = appState.currentSituationIndex === domain.situations.length - 1;
+
+            if (isLastSituationInDomain && currentAnswer.causesHarm !== null) {
+                sectionCompleteHtml = `
+                    <div class="p-4 my-6 bg-green-50 border-l-4 border-green-500 rounded-r-lg">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-green-800">Section Complete</h3>
+                                <div class="mt-2 text-sm text-green-700">
+                                    <p>You have completed all situations in the ${domain.name} domain.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // --- Progress Bar & Navigation Logic ---
+            const progress = calculateOverallProgress();
+            const progressHtml = `
+                <div class="flex justify-between mb-1">
+                    <span class="text-base font-medium text-blue-700">Overall Progress</span>
+                    <span class="text-sm font-medium text-blue-700">${progress.answeredSituations} / ${progress.totalSituations}</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style="width: ${progress.percentage}%"></div>
+                </div>
+            `;
+
+            const isLastDomain = appState.currentDomainId === assessmentData.domains.length - 1;
+            let nextButtonHtml = '';
+            if (isLastSituationInDomain) {
+                if (!isLastDomain) {
+                    const nextDomain = assessmentData.domains[appState.currentDomainId + 1];
+                    nextButtonHtml = `<button class="btn btn-primary" onclick="goToNextDomain()">Next Domain ${nextDomain.id + 1}: ${nextDomain.name} →</button>`;
+                } else {
+                    nextButtonHtml = `<button class="btn btn-primary" onclick="renderDashboard()">Finish Assessment</button>`;
+                }
+            } else {
+                nextButtonHtml = `<button class="btn btn-primary" onclick="navigateSituation(1)">Next Cause →</button>`;
+            }
+
+            const navigationHtml = `
+                <div class="p-6 bg-gray-50 rounded-b-lg">
+                    <div class="flex justify-between items-center">
+                        <button class="btn btn-secondary" onclick="renderDashboard()">Back to Dashboard</button>
+                        <div>
+                            <button class="btn btn-primary mr-2" ${appState.currentSituationIndex === 0 ? 'disabled' : ''} onclick="navigateSituation(-1)">← Previous</button>
+                            ${nextButtonHtml}
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                         ${progressHtml}
+                    </div>
+                </div>
+            `;
+            
+            const tooltipExample = situation.example ? `Example: ${situation.example}` : `e.g., a power failure (cause) could lead to a ventilator stopping (patient harm), or a cyber attack (cause) could lead to the patient record system being unavailable (system harm).`;
+
+
+            contentArea.innerHTML = `
+                <div class="bg-white shadow-md rounded-lg">
+                    <div class="p-6 border-b">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-xl font-bold">Domain ${domain.id + 1}: ${domain.name}</h2>
+                            <span class="text-sm font-medium text-gray-500">Situation ${situation.id + 1} of ${domain.situations.length}</span>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-6">
+                            <h3 class="text-lg font-semibold mb-2">Cause ${domain.id+1}.${situation.id+1}: ${situation.title}</h3>
+                            <p class="mb-2">${situation.description}
+                                 <a href="#" class="ml-2 text-blue-500 hover:underline text-sm" onclick="event.preventDefault(); showCausesReferencePage('d${domain.id}-s${situation.id}')">[?]</a>
+                            </p>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <p class="font-semibold mb-2">
+                                Could this cause patient or system harm?
+                                <span class="relative group inline-block">
+                                    <span class="ml-1 text-blue-500 cursor-pointer">[?]</span>
+                                    <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-2 px-3 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 z-20 shadow-lg">
+                                        ${tooltipExample}
+                                        <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                                    </span>
+                                </span>
+                            </p>
+                            <p id="causes-harm-error" class="text-red-500 text-xs mt-2 hidden">Please select an answer to this question before proceeding.</p>
+                            <div>
+                                <div class="mb-2">
+                                    <label class="flex items-center p-3 rounded-md border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer shadow-sm">
+                                        <input type="radio" name="causesHarm" value="yes" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" ${currentAnswer.causesHarm === 'yes' ? 'checked' : ''} onchange="handleCausesHarmChange(event)">
+                                        <span class="ml-3">Yes</span>
+                                    </label>
+                                    ${currentAnswer.causesHarm === 'yes' ? `
+                                    <div class="ml-8 mt-2 pl-3 border-l-2 border-gray-200">
+                                        <label class="block text-sm font-medium text-gray-700">Please specify the harm to the patient or system that could arise from this:</label>
+                                        ${(currentAnswer.harmSpecifications || ['']).map((spec, index) => `
+                                            <div class="flex items-center mt-2">
+                                                <input type="text" class="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm focus:border-blue-500 focus:ring-blue-500" value="${spec}" oninput="handleHarmSpecificationChange(event, ${index})">
+                                                <button class="ml-2 p-1 text-red-500 hover:text-red-700 text-xl font-bold leading-none" onclick="handleRemoveHarmSpecification(${index})" aria-label="Remove specification">&times;</button>
+                                            </div>
+                                        `).join('')}
+                                        <button class="btn btn-secondary text-xs py-1 px-2 mt-2" onclick="handleAddHarmSpecification()">+ Add another</button>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                                <div class="mb-2">
+                                    <label class="flex items-center p-3 rounded-md border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer shadow-sm">
+                                        <input type="radio" name="causesHarm" value="no" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" ${currentAnswer.causesHarm === 'no' ? 'checked' : ''} onchange="handleCausesHarmChange(event)">
+                                        <span class="ml-3">No</span>
+                                    </label>
+                                    ${currentAnswer.causesHarm === 'no' ? `
+                                    <div class="ml-8 mt-2 pl-3 border-l-2 border-gray-200">
+                                        <label for="no-harm-reason" class="block text-sm font-medium text-gray-700">Please explain why:</label>
+                                        <textarea id="no-harm-reason" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" oninput="handleNoHarmReasonChange(event)">${currentAnswer.noHarmReason || ''}</textarea>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                                <label class="flex items-center p-3 rounded-md border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer shadow-sm mb-2">
+                                    <input type="radio" name="causesHarm" value="dont_know" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" ${currentAnswer.causesHarm === 'dont_know' ? 'checked' : ''} onchange="handleCausesHarmChange(event)">
+                                    <span class="ml-3">Don't know</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        ${currentAnswer.causesHarm === 'yes' ? `
+                        <div class="mb-6">
+                            <p class="font-semibold mb-2">Do you have controls in place for this potential harm?</p>
+                            
+                            <div id="controls-section" class="mt-2 transition-all duration-300 ease-in-out ${currentAnswer.aware === 'na' ? 'hidden' : ''}">
+                                <p class="font-semibold mb-4 text-gray-700">Please select or add the controls your organisation currently has in place for this cause.</p>
+                                ${renderControlsList(domain.id, situation.id, currentAnswer)}
+                            </div>
+
+                            <div class="mt-4">
+                                <label class="flex items-center p-3 rounded-md border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer shadow-sm">
+                                    <input type="radio" name="awareness" value="na" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" ${currentAnswer.aware === 'na' ? 'checked' : ''} onclick="handleAwarenessChange(event)">
+                                    <span class="ml-3 text-gray-600">We do not need controls for this.</span>
+                                 </label>
+                                <div class="ml-8 mt-2 transition-all duration-300 ${showNaReason ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}">
+                                    <label for="na-reason-input" class="block text-sm font-medium text-gray-700">Because...</label>
+                                    <textarea id="na-reason-input" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${isPlaceholderReason ? 'text-gray-500 italic' : ''}" placeholder="Please provide a brief justification." oninput="handleNaReasonChange(event); this.classList.remove('text-gray-500', 'italic')">${naReasonText}</textarea>
+                                    <p id="na-reason-error" class="text-red-500 text-xs mt-1 hidden">Justification is required.</p>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${currentAnswer.causesHarm === 'no' ? `
+                         <div class="mb-6">
+                            <div class="mt-4">
+                                <label class="flex items-center p-3 rounded-md border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer shadow-sm">
+                                    <input type="radio" name="awareness" value="na" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" ${currentAnswer.aware === 'na' ? 'checked' : ''} onclick="handleAwarenessChange(event)">
+                                    <span class="ml-3 text-gray-600">We do not need controls for this.</span>
+                                 </label>
+                                <div class="ml-8 mt-2 transition-all duration-300 ${showNaReason ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}">
+                                    <label for="na-reason-input" class="block text-sm font-medium text-gray-700">Because...</label>
+                                    <textarea id="na-reason-input" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${isPlaceholderReason ? 'text-gray-500 italic' : ''}" placeholder="Please provide a brief justification." oninput="handleNaReasonChange(event); this.classList.remove('text-gray-500', 'italic')">${naReasonText}</textarea>
+                                    <p id="na-reason-error" class="text-red-500 text-xs mt-1 hidden">Justification is required.</p>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+
+
+                        ${sectionCompleteHtml}
+                    </div>
+                    ${navigationHtml}
+                </div>
+            `;
+            // Add disabled styles
+            contentArea.querySelectorAll('button:disabled').forEach(b => b.classList.add('opacity-50', 'cursor-not-allowed'));
+        }
+        
+        /**
+         * Renders a simple list of controls for the current situation.
+         */
+        function renderControlsList(domainId, situationId, currentAnswer) {
+            const situation = assessmentData.domains[domainId].situations[situationId];
+            let hasMandatorySpecific = false; // Flag to check if footnote is needed
+
+            // Helper to generate clickable standard controls
+            const clickableControl = (controlId) => {
+                const control = controlLibrary[controlId];
+                const isSelected = currentAnswer.selectedControls && currentAnswer.selectedControls.has(controlId);
+                const mandatoryIndicator = control.mandatory ? `
+                    <span class="relative group inline-block ml-0.5">
+                        <span class="font-bold text-red-500">*</span>
+                        <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 text-center z-20 shadow-lg">
+                            This is potentially a legal requirement.
+                            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                        </span>
+                    </span>` : '';
+                
+                if (control.mandatory) hasMandatorySpecific = true;
+                const baseStyle = `p-3 rounded-md text-sm cursor-pointer border flex justify-between items-center transition-all duration-200`;
+                const selectedStyle = `bg-green-100 border-green-400 text-green-800 shadow-sm`;
+                const unselectedStyle = `bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400`;
+                
+                let specificationHtml = '';
+                if (isSelected) {
+                    const specText = (currentAnswer.controlSpecifications && currentAnswer.controlSpecifications[controlId]) || '';
+                    
+                    let suggestionsHtml = '';
+                    if (control.specifics && control.specifics.length > 0) {
+                        const suggestionButtons = control.specifics.map(s => {
+                            let buttonText = s.text;
+                            let tooltipHtml = '';
+                            if (s.text.endsWith('*')) {
+                                hasMandatorySpecific = true;
+                                buttonText = s.text.slice(0, -1); // remove the asterisk from the main text
+                                tooltipHtml = `
+                                    <span class="relative group inline-block ml-1">
+                                        <span class="font-bold text-red-500">*</span>
+                                        <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 text-center z-20 shadow-lg">
+                                            This is potentially a legal requirement.
+                                            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                                        </span>
+                                    </span>`;
+                            }
+                            return `<button class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-2 rounded-full mr-1 mb-1 flex items-center" onclick="appendControlSpecification(event, '${controlId}', '${s.text.replace(/'/g, "\\'")}')">
+                                        <span>+ ${buttonText}</span>
+                                        ${tooltipHtml}
+                                    </button>`;
+                        }).join('');
+                        suggestionsHtml = `
+                            <div class="mt-2">
+                                <p class="text-xs text-gray-500 mb-1">Add a suggestion:</p>
+                                <div class="flex flex-wrap">
+                                    ${suggestionButtons}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    specificationHtml = `
+                        <div class="mt-2 pl-4">
+                            <label class="block text-xs font-medium text-gray-600">Please detail:</label>
+                            <textarea rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" oninput="handleControlSpecificationChange(event, '${controlId}')" onclick="event.stopPropagation()">${specText}</textarea>
+                            ${suggestionsHtml}
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div>
+                        <div class="${baseStyle} ${isSelected ? selectedStyle : unselectedStyle}" onclick="toggleControlSelection('${controlId}')">
+                            <span>${control.text}${mandatoryIndicator}</span>
+                            <a href="#" class="ml-2 text-blue-500 hover:underline flex-shrink-0" onclick="event.preventDefault(); event.stopPropagation(); showReferencePage('${controlId}')">[?]</a>
+                        </div>
+                        ${specificationHtml}
+                    </div>
+                `;
+            };
+
+            // Helper to generate "Other" control input
+            const otherControlsHtml = (currentAnswer.otherControls || []).map((text, index) => `
+                <div class="flex items-center mt-2">
+                    <input type="text" class="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm focus:border-blue-500 focus:ring-blue-500" value="${text}" oninput="handleOtherControlTextChange(event, ${index})">
+                    <button class="ml-2 p-1 text-red-500 hover:text-red-700 text-xl font-bold leading-none" onclick="handleRemoveOtherControl(${index})" aria-label="Remove other control">&times;</button>
+                </div>
+            `).join('');
+
+            const otherControlSection = `
+                <div class="p-3 mt-2 rounded-md border bg-blue-50 border-blue-300">
+                    <p class="text-gray-700 font-medium">Other Control(s)</p>
+                    ${otherControlsHtml}
+                    <button class="btn btn-secondary text-xs py-1 px-2 mt-2" onclick="handleAddOtherControl()">+ Add another</button>
+                </div>
+            `;
+
+            const controlsHtml = situation.controls.map(cid => clickableControl(cid)).join('');
+            
+            const footnoteHtml = hasMandatorySpecific ? `<p class="text-xs text-gray-500 mt-4">* This is potentially a legal requirement.</p>` : '';
+
+            return `
+                <div class="space-y-2 p-4 bg-gray-50 rounded-lg border">
+                    ${controlsHtml}
+                    ${otherControlSection}
+                </div>
+                ${footnoteHtml}
+            `;
+        }
+        
+        /**
+         * Placeholder for submitting assessment data to a backend server.
+         * @param {object} assessmentData - The appState object.
+         */
+        async function submitAssessmentData(assessmentData) {
+            console.log("Submitting assessment data (placeholder):", assessmentData);
+            // In a real implementation, this function would send data to a server.
+            // For now, it just logs to the console.
+            const dataToSend = {
+                ...assessmentData,
+            };
+            // Convert sets to arrays for submission
+            Object.keys(dataToSend.answers).forEach(key => {
+                if (dataToSend.answers[key].selectedControls) {
+                    dataToSend.answers[key].selectedControls = Array.from(dataToSend.answers[key].selectedControls);
+                }
+            });
+
+            console.log("Data ready for submission:", JSON.stringify(dataToSend, null, 2));
+            // Example fetch call (commented out):
+            /*
+            try {
+                const response = await fetch('YOUR_API_ENDPOINT_HERE', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataToSend),
+                });
+                if (response.ok) {
+                    console.log('Data submitted successfully.');
+                } else {
+                    console.error('Server error:', await response.text());
+                }
+            } catch (error) {
+                console.error('Failed to submit data:', error);
+            }
+            */
+            return Promise.resolve(); // Indicate success
+        }
+
+        /**
+         * Renders the final report view.
+         */
+        function renderReport() {
+            // A new, robust function to ensure data is correctly formatted before rendering.
+            ensureAnswersAreHydrated();
+            
+            // Send the latest data to your server for collation.
+            submitAssessmentData(appState); 
+
+            renderHeader();
+            appState.currentView = 'report';
+            const { mandatoryCompliance, domainAnalysis, analysisInsights, numberOfStrengths } = generateReportAnalysis();
+            const now = new Date();
+            const timestamp = `${now.toLocaleDateString('en-GB')} at ${now.toLocaleTimeString('en-GB')}`;
+
+            const mandatoryRows = Object.entries(mandatoryCompliance.checks).map(([key, value]) => {
+                const isPotentiallyNonCompliant = value.status === 'Potentially Non-compliant';
+                const isGap = value.status === 'Gap Identified';
+                const statusColor = (isPotentiallyNonCompliant || isGap) ? 'text-red-600' : 'text-green-600';
+                const statusIcon = (isPotentiallyNonCompliant || isGap) ? '❌' : '✔';
+                const tooltipHtml = `
+                    <span class="relative group inline-block ml-0.5">
+                        <span class="font-bold text-red-500">*</span>
+                        <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 text-center z-20 shadow-lg">
+                            This is potentially a legal requirement.
+                            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                        </span>
+                    </span>`;
+                return `
+                    <tr class="border-b">
+                        <td class="p-3 font-medium">${key}${tooltipHtml}</td>
+                        <td class="p-3 ${statusColor} font-semibold">${statusIcon} ${value.status}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            const domainHtml = domainAnalysis.map(domain => {
+                return `
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold p-4 bg-gray-100 rounded-t-lg border-b">${domain.name}</h3>
+                        <div>${domain.detailHtml}</div>
+                    </div>
+                `;
+            }).join('');
+
+
+            const insightsHtml = analysisInsights.map(insight => `
+                <div class="mb-4 p-4 border-l-4 ${insight.priority === 1 ? 'border-red-500 bg-red-50' : insight.priority === 2 ? 'border-yellow-500 bg-yellow-50' : 'border-green-500 bg-green-50'} rounded-r-lg page-break-avoid">
+                    <h4 class="font-semibold text-lg">${insight.title}</h4>
+                    <p class="text-sm text-gray-600">${insight.observation}</p>
+                    <div class="mt-2 text-sm text-gray-800">${insight.recommendation}</div>
+                </div>
+            `).join('');
+
+            contentArea.innerHTML = `
+                <div id="report-content" class="bg-white shadow-md rounded-lg p-6">
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <h2 class="text-2xl font-bold">AI-Readiness Report</h2>
+                            <p class="text-sm text-gray-500">Generated on: ${timestamp}</p>
+                             <p class="text-sm text-gray-500">For: ${appState.institution || 'N/A'}</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="downloadPDF('report-content', 'AI-Readiness-Report')">⬇️ Download Full Report as .PDF</button>
+                    </div>
+                    
+                    <div class="mb-8 p-4 bg-gray-50 rounded-lg page-break-avoid">
+                        <h3 class="text-lg font-bold mb-2">About this report</h3>
+                        <p class="text-gray-700 mb-4">The required level of organisational preparedness must be proportionate to the level of risk. This report provides a snapshot of your current controls against a range of Causes. The acceptable level of residual risk will vary depending on factors such as the <strong class="text-blue-700">scale</strong> and <strong class="text-blue-700">complexity</strong> of an AI deployment, the number of <strong class="text-blue-700">integrations</strong> with other systems, and your organisation's overall <strong class="text-blue-700">risk appetite</strong>. The following analysis should be interpreted in that context. If you have not completed all sections, this will be highlighted below.</p>
+                        <div class="border-t pt-4">
+                            <h4 class="font-semibold text-gray-800">Assessment Details:</h4>
+                            <ul class="list-disc list-inside text-sm text-gray-600 mt-2 space-y-1">
+                                <li><strong>AI Description:</strong> ${appState.aiDescription || 'Not provided'}</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="mb-8 page-break-avoid">
+                        <h3 class="text-lg font-bold mb-2">1. Mandatory Compliance Status</h3>
+                        <p class="text-sm text-gray-600 mb-2">${mandatoryCompliance.explanation}</p>
+                        ${mandatoryRows.length > 0 ? `
+                        <table class="w-full text-left border rounded-lg">
+                            <thead class="bg-gray-50">
+                                <tr><th class="p-3 font-semibold">Control</th><th class="p-3 font-semibold">Status</th></tr>
+                            </thead>
+                            <tbody>${mandatoryRows}</tbody>
+                        </table>
+                        <p class="text-xs text-gray-500 mt-2">* This is potentially a legal requirement.</p>
+                        ` : `<p class="text-sm text-gray-600 p-4 bg-gray-50 rounded-lg">No mandatory controls are applicable based on your assessment inputs.</p>`}
+                    </div>
+
+                    <div class="mb-8">
+                        <h3 class="text-lg font-bold mb-2">2. Domain-by-Domain Analysis</h3>
+                        ${domainHtml}
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-bold mb-2">3. Insights & Recommendations</h3>
+                        <div class="space-y-4">${insightsHtml}</div>
+                    </div>
+
+                    <div class="border-t mt-8 pt-4 text-xs text-gray-400">
+                        <p>Report generated by AI Readiness Tool v3.0</p>
+                        <p>Timestamp: ${now.toISOString()}</p>
+                        <p>User: ${appState.email || 'anonymous'}</p>
+                    </div>
+                </div>
+                 <div class="mt-8 text-center">
+                    <button class="btn btn-secondary" onclick="renderDashboard()">Back to Dashboard</button>
+                </div>
+            `;
+        }
+        
+        /**
+         * Renders the reference page.
+         */
+        function renderReferencePage() {
+            renderHeader();
+            appState.currentView = 'reference';
+            let pageHasMandatory = false;
+            const controlListHtml = Object.entries(controlLibrary).map(([id, control]) => {
+                const isHighlighted = appState.highlightControl === id;
+                const mandatoryIndicator = control.mandatory ? `
+                    <span class="relative group inline-block ml-0.5">
+                        <span class="font-bold text-red-500">*</span>
+                        <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 text-center z-20 shadow-lg">
+                            This is potentially a legal requirement.
+                            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                        </span>
+                    </span>` : '';
+                
+                if (control.mandatory) pageHasMandatory = true;
+
+                let specificsHtml = '';
+                if(control.specifics && control.specifics.length > 0) {
+                     specificsHtml = `
+                        <div class="mt-2">
+                            <h4 class="text-sm font-semibold text-gray-700">Specific examples</h4>
+                            <ul class="list-disc list-inside text-xs text-gray-500 mt-1 pl-4">
+                                ${control.specifics.map(s => {
+                                    let textHtml = s.text;
+                                    if (s.text.endsWith('*')) {
+                                        pageHasMandatory = true;
+                                        const mainText = s.text.slice(0, -1);
+                                        const tooltip = `
+                                            <span class="relative group inline-block ml-0.5">
+                                                <span class="font-bold text-red-500">*</span>
+                                                <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 text-center z-20 shadow-lg">
+                                                    This is potentially a legal requirement.
+                                                    <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                                                </span>
+                                            </span>`;
+                                        textHtml = mainText + tooltip;
+                                    }
+                                    
+                                    if (s.url) {
+                                        return `<li><a href="${s.url}" target="_blank" class="text-blue-600 hover:underline">${textHtml}</a></li>`;
+                                    }
+                                    return `<li>${textHtml}</li>`;
+                                }).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                let exampleHtml = '';
+                if(control.example) {
+                    exampleHtml = `
+                        <div class="mt-2 p-2 bg-gray-50 border-l-2 border-gray-200">
+                            <h4 class="text-sm font-semibold text-gray-700">In practice example</h4>
+                            <p class="text-xs italic text-gray-500">${control.example}</p>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div id="${id}" class="p-4 border-b ${isHighlighted ? 'bg-yellow-100' : ''}">
+                        <p class="font-semibold">${control.text}${mandatoryIndicator}</p>
+                        <p class="text-sm text-gray-600">${control.tooltip}</p>
+                        ${specificsHtml}
+                        ${exampleHtml}
+                    </div>
+                `;
+            }).join('');
+
+            const footnoteHtml = pageHasMandatory ? `<p class="text-xs text-gray-500 mt-4">* This is potentially a legal requirement.</p>` : '';
+
+            contentArea.innerHTML = `
+                 <div class="bg-white shadow-md rounded-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold">Controls Reference Guide</h2>
+                        <button class="btn btn-secondary" onclick="goBackFromReference()">← Back</button>
+                    </div>
+                    <div>${controlListHtml}</div>
+                    ${footnoteHtml}
+                </div>
+            `;
+            
+            if (appState.highlightControl) {
+                const element = document.getElementById(appState.highlightControl);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                appState.highlightControl = null; // Clear after use
+            }
+        }
+        
+        /**
+         * Renders the causes reference page.
+         */
+        function renderCausesReferencePage() {
+            renderHeader();
+            appState.currentView = 'causesReference';
+            let causesHtml = '';
+            assessmentData.domains.forEach(domain => {
+                causesHtml += `<div class="mt-6"><h3 class="text-lg font-bold p-2 bg-gray-100 rounded-t-lg border-b">${domain.name}</h3>`;
+                domain.situations.forEach(situation => {
+                    const situationId = `d${domain.id}-s${situation.id}`;
+                    const isHighlighted = appState.highlightSituation === situationId;
+                    causesHtml += `
+                        <div id="${situationId}" class="p-4 border-b ${isHighlighted ? 'bg-yellow-100' : ''}">
+                            <p class="font-semibold">Cause ${domain.id + 1}.${situation.id + 1}: ${situation.title}</p>
+                            <p class="text-sm text-gray-600 mt-1">${situation.description}</p>
+                        </div>
+                    `;
+                });
+                causesHtml += `</div>`;
+            });
+
+            contentArea.innerHTML = `
+                <div class="bg-white shadow-md rounded-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold">Causes Reference Guide</h2>
+                        <button class="btn btn-secondary" onclick="goBackFromReference()">← Back</button>
+                    </div>
+                    <div>${causesHtml}</div>
+                </div>
+            `;
+            
+            if (appState.highlightSituation) {
+                const element = document.getElementById(appState.highlightSituation);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                appState.highlightSituation = null; // Clear after use
+            }
+        }
+        
+        function renderExampleReport() {
+            const originalAnswers = appState.answers; // Keep a reference to the original answers object
+
+            // Create a full set of plausible example answers
+            const exampleAnswers = {};
+            assessmentData.domains.forEach(domain => {
+                domain.situations.forEach(situation => {
+                    const key = `d${domain.id}-s${situation.id}`;
+                    // Create a clean answer object for the example to avoid modifying the real state
+                    const answer = {
+                        aware: null, causesHarm: null, harmSpecifications: [], noHarmReason: '',
+                        selectedControls: new Set(), controlSpecifications: {}, otherControls: [], naReason: ''
+                    };
+                    
+                    // Make some 'yes', some 'no', and some 'dont_know' for variety
+                    const harmChoice = Math.random();
+                    if (harmChoice < 0.7) {
+                        answer.causesHarm = 'yes';
+                        answer.harmSpecifications = [`Example harm for ${situation.title}`];
+                    } else if (harmChoice < 0.9) {
+                        answer.causesHarm = 'no';
+                        answer.noHarmReason = 'Considered a business risk rather than a direct harm.';
+                    } else {
+                        answer.causesHarm = 'dont_know';
+                    }
+
+                    // For 'yes' harms, select some controls
+                    if (answer.causesHarm === 'yes') {
+                        situation.controls.forEach(controlId => {
+                            if (controlLibrary[controlId].mandatory || Math.random() > 0.5) {
+                                answer.selectedControls.add(controlId);
+                            }
+                        });
+                    }
+                    exampleAnswers[key] = answer;
+                });
+            });
+
+            // Set temporary state for the report
+            appState.answers = exampleAnswers;
+            
+            renderReport(); // Render the report with example data
+
+            // Restore original state
+            appState.answers = originalAnswers;
+        }
+
+
+        /**
+         * Renders the case study page.
+         */
+        function renderCaseStudyPage() {
+            renderHeader();
+            appState.currentView = 'caseStudy';
+            contentArea.innerHTML = `
+                <div class="bg-white shadow-md rounded-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold">Case Study: Dermatology AI Triage Tool</h2>
+                        <button class="btn btn-secondary" onclick="renderDashboard()">← Back to Dashboard</button>
+                    </div>
+                    <div class="prose max-w-none">
+                        <h3>Scenario</h3>
+                        <p>A large NHS Trust plans to deploy 'DermAI-Triage v1.0', an AI application designed to help GPs in the community assess photos of suspicious skin lesions. The tool provides a risk score to help the GP decide whether to refer the patient to a secondary care dermatology clinic for urgent review.</p>
+                        <p>A 'Task and Finish Group' is formed, led by a GP with a special interest in dermatology who will act as the 'Workforce Ambassador'. The group uses the AI Readiness Tool to structure their planning and due diligence.</p>
+
+                        <h3 class="mt-6">Identifying and Managing Causes</h3>
+                        
+                        <div class="mt-4 p-4 border rounded-lg">
+                            <h4 class="font-bold">Cause: Underperformance for population subgroup(s)</h4>
+                            <p class="text-sm text-gray-600 mb-2">The team discovers the AI was primarily trained on data from light-skinned populations. They are concerned it may not perform as accurately for patients with darker skin tones, which are common in their local area. This could lead to missed or delayed cancer diagnoses.</p>
+                            <p><strong>Controls Implemented:</strong></p>
+                            <ul class="list-disc list-inside text-sm space-y-1">
+                                <li><strong>Non-interventional evaluation of performance:</strong> Before going live, they run a silent, retrospective evaluation on 1,000 anonymised local patient images, stratified by skin tone. The results confirm a lower accuracy for Fitzpatrick skin types IV-VI.</li>
+                                <li><strong>Ethics and public engagement:</strong> The findings are discussed with the Trust's ethics committee and a patient focus group. The consensus is that the tool can still be beneficial, but only with strong safety mitigations.</li>
+                                <li><strong>Staff training and development:</strong> The team develops mandatory training for all GPs using the tool, highlighting the performance differences and instructing them not to rely solely on the AI score for patients with darker skin tones.</li>
+                                <li><strong>(Other Control - User Added):</strong> They establish a 'second opinion' pathway where GPs can instantly send images from patients with darker skin tones to a consultant dermatologist via a secure teledermatology link, bypassing the AI for these cases initially.</li>
+                            </ul>
+                        </div>
+
+                        <div class="mt-4 p-4 border rounded-lg">
+                            <h4 class="font-bold">Cause: Low staff acceptability</h4>
+                            <p class="text-sm text-gray-600 mb-2">During initial discussions, several GPs express concern about the tool. They worry about becoming deskilled, the legal implications of disagreeing with the AI, and that it's just another administrative burden.</p>
+                            <p><strong>Controls Implemented:</strong></p>
+                            <ul class="list-disc list-inside text-sm space-y-1">
+                                <li><strong>Workforce ambassador leading adoption:</strong> The GP lead organises peer-to-peer sessions, demonstrating the tool and openly discussing its limitations. Her credibility helps to build trust among colleagues.</li>
+                                <li><strong>Mechanisms for early user feedback:</strong> A pilot is run in two GP practices. Regular, informal feedback sessions are held to gather user experience insights, which lead to improvements in the user interface before the main rollout.</li>
+                                <li><strong>Employee engagement and AI policy:</strong> The Trust's AI policy is updated to clarify that the AI tool is for decision support only, and the clinician's final judgement always takes precedence. This is communicated clearly through all training materials.</li>
+                            </ul>
+                        </div>
+
+                        <div class="mt-4 p-4 border rounded-lg">
+                            <h4 class="font-bold">Cause: Local technological infeasibility</h4>
+                            <p class="text-sm text-gray-600 mb-2">The AI developer specifies that high-resolution images taken with a dermatoscope are required for optimal performance. An audit reveals that only 30% of GP practices in the region have the specified camera equipment.</p>
+                            <p><strong>Controls Implemented:</strong></p>
+                            <ul class="list-disc list-inside text-sm space-y-1">
+                                <li><strong>Needs-led innovation & Options appraisal:</strong> The 'AI oversight group' reviews the findings. Instead of abandoning the project, they secure funding to purchase the necessary camera equipment.</li>
+                                <li><strong>(Other Control - User Added):</strong> A phased rollout plan is created. The project begins with the 30% of practices that are already equipped, while the new cameras are procured and distributed to the remaining practices over the following 12 months.</li>
+                                <li><strong>Effective developer-provider collaboration:</strong> The Trust works with the developer to create clear, simple image-capture guidelines to ensure GPs can take consistently high-quality photos, minimising errors and improving AI accuracy.</li>
+                            </ul>
+                        </div>
+
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- EVENT HANDLERS & LOGIC ---
+
+        function getOrCreateAnswer(answerKey) {
+            if (!appState.answers[answerKey]) {
+                appState.answers[answerKey] = {
+                    aware: null,
+                    causesHarm: null,
+                    harmSpecifications: [],
+                    noHarmReason: '',
+                    selectedControls: new Set(),
+                    controlSpecifications: {},
+                    otherControls: [],
+                    naReason: ''
+                };
+            }
+            return appState.answers[answerKey];
+        }
+
+        function handleUserInfoChange(event) {
+            const { id, value, type, checked } = event.target;
+            if (id === 'user-email') {
+                appState.email = value;
+                const emailError = document.getElementById('email-error');
+                const proceedButton = document.getElementById('proceed-button');
+                const emailInput = document.getElementById('user-email');
+
+                if (value && !validateEmail(value)) {
+                    if(emailError) emailError.classList.remove('hidden');
+                    if(proceedButton) proceedButton.disabled = true;
+                    if(emailInput) emailInput.classList.add('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+                } else {
+                    if(emailError) emailError.classList.add('hidden');
+                    if(proceedButton) proceedButton.disabled = false;
+                    if(emailInput) emailInput.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+                }
+            } else if (id === 'ai-description') {
+                appState.aiDescription = value;
+            } else if (id === 'institution-name') {
+                appState.institution = value;
+            } else if (id === 'share-contact') {
+                appState.shareContact = checked;
+            }
+            renderHeader(); // Update header on any info change
+        }
+
+        function searchOrganisations(query) {
+            clearTimeout(debounceTimeout);
+            const resultsContainer = document.getElementById('institution-search-results');
+            if (!resultsContainer) return;
+
+            if (query.length < 3) {
+                resultsContainer.innerHTML = '';
+                resultsContainer.classList.add('hidden');
+                return;
+            }
+
+            resultsContainer.classList.remove('hidden');
+            resultsContainer.innerHTML = '<div class="p-3 text-sm text-gray-500">Searching...</div>';
+
+            debounceTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(`https://directory.spineservices.nhs.uk/ORD/2-0-0/organisations?Name=${query}&Limit=10`);
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    const data = await response.json();
+                    
+                    if (data.Organisations && data.Organisations.length > 0) {
+                        const resultsHtml = data.Organisations.map(org => {
+                            return `<div class="p-3 hover:bg-gray-100 cursor-pointer text-sm" onclick='selectOrganisation(${JSON.stringify(org.Name)})'>${org.Name}</div>`;
+                        }).join('');
+                        resultsContainer.innerHTML = resultsHtml;
+                    } else {
+                        resultsContainer.innerHTML = '<div class="p-3 text-sm text-gray-500">No organisations found.</div>';
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch organisations:", error);
+                    resultsContainer.innerHTML = '<div class="p-3 text-sm text-red-500">Error fetching data. Please try again.</div>';
+                }
+            }, 500); // 500ms debounce delay
+        }
+
+        function selectOrganisation(name) {
+            appState.institution = name;
+
+            const searchInput = document.getElementById('institution-search');
+            const resultsContainer = document.getElementById('institution-search-results');
+            const selectedContainer = document.getElementById('selected-institution-container');
+            const selectedName = document.getElementById('selected-institution-name');
+
+            if (searchInput) searchInput.value = '';
+            if (searchInput) searchInput.classList.add('hidden');
+            if (resultsContainer) resultsContainer.classList.add('hidden');
+            if (selectedName) selectedName.textContent = name;
+            if (selectedContainer) selectedContainer.classList.remove('hidden');
+
+            renderHeader();
+        }
+
+        function clearInstitutionSelection() {
+            appState.institution = '';
+
+            const searchInput = document.getElementById('institution-search');
+            const selectedContainer = document.getElementById('selected-institution-container');
+
+            if (searchInput) searchInput.classList.remove('hidden');
+            if (selectedContainer) selectedContainer.classList.add('hidden');
+            
+            renderHeader();
+        }
+
+        function toggleLanguageExplanation() {
+            const explanation = document.getElementById('language-explanation');
+            const toggle = document.getElementById('language-toggle');
+            explanation.classList.toggle('hidden');
+            if (explanation.classList.contains('hidden')) {
+                toggle.innerHTML = 'Show Explanation ▼';
+            } else {
+                toggle.innerHTML = 'Hide Explanation ▲';
+            }
+        }
+
+        function startAssessment(domainId) {
+            appState.currentDomainId = domainId;
+            appState.currentSituationIndex = 0;
+            renderAssessment();
+        }
+
+        function navigateSituation(direction) {
+            appState.currentSituationIndex += direction;
+            renderAssessment();
+        }
+        
+        function goToNextDomain() {
+            if (appState.currentDomainId < assessmentData.domains.length - 1) {
+                appState.currentDomainId++;
+                appState.currentSituationIndex = 0;
+                renderAssessment();
+            } else {
+                renderDashboard();
+            }
+        }
+        
+        function showReferencePage(controlId) {
+            appState.returnView = 'assessment';
+            appState.highlightControl = controlId;
+            renderReferencePage();
+        }
+        
+        function goToReferencePageFromDashboard() {
+            appState.returnView = 'dashboard';
+            renderReferencePage();
+        }
+
+        function goBackFromReference() {
+            switch(appState.returnView) {
+                case 'assessment':
+                    renderAssessment();
+                    break;
+                case 'report':
+                    renderReport();
+                    break;
+                case 'dashboard':
+                default:
+                    renderDashboard();
+                    break;
+            }
+            appState.returnView = null; // Clear after use
+        }
+        
+        function showCausesReferencePage(situationId) {
+            appState.returnView = appState.currentView;
+            appState.highlightSituation = situationId;
+            renderCausesReferencePage();
+        }
+
+        function showReferencePageFromReport(controlId) {
+            appState.returnView = 'report';
+            appState.highlightControl = controlId;
+            renderReferencePage();
+        }
+        
+        function toggleControlSelection(controlId) {
+            deselectNaOption();
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+
+            if (answer.selectedControls.has(controlId)) {
+                answer.selectedControls.delete(controlId);
+                // Clear the specification when deselecting
+                if (answer.controlSpecifications && answer.controlSpecifications[controlId]) {
+                    delete answer.controlSpecifications[controlId];
+                }
+            } else {
+                answer.selectedControls.add(controlId);
+            }
+            renderAssessment();
+        }
+
+        function handleCausesHarmChange(event) {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            answer.causesHarm = event.target.value;
+
+            if (answer.causesHarm === 'yes') {
+                if (!answer.harmSpecifications || answer.harmSpecifications.length === 0) {
+                    answer.harmSpecifications = [''];
+                }
+                answer.noHarmReason = ''; // Clear other reason
+            } else if (answer.causesHarm === 'no') {
+                 answer.harmSpecifications = []; // Clear other specs
+            } else { // 'dont_know' or other
+                answer.harmSpecifications = [];
+                answer.noHarmReason = '';
+            }
+            renderAssessment();
+        }
+
+        function handleAwarenessChange(event) {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const currentAnswer = getOrCreateAnswer(answerKey);
+            
+            // Toggle 'na' status
+            if (currentAnswer.aware === 'na') {
+                currentAnswer.aware = null; // Uncheck if already checked
+            } else {
+                currentAnswer.aware = 'na'; // Check it
+            }
+
+
+            if (currentAnswer.aware === 'na') {
+                const hasSpecifiedHarms = currentAnswer.causesHarm === 'yes' && currentAnswer.harmSpecifications && currentAnswer.harmSpecifications.filter(s => s.trim() !== '').length > 0;
+                
+                if (!hasSpecifiedHarms && !currentAnswer.naReason) {
+                     currentAnswer.naReason = "No credible harm identified";
+                }
+            } else {
+                currentAnswer.naReason = ''; // Clear reason if another option is chosen
+            }
+            
+            renderAssessment();
+        }
+        
+        function handleNaReasonChange(event) {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            if (appState.answers[answerKey]) {
+                appState.answers[answerKey].naReason = event.target.value;
+            }
+        }
+
+        function handleOtherControlTextChange(event, index) {
+            deselectNaOption();
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            if (answer && answer.otherControls && answer.otherControls.length > index) {
+                answer.otherControls[index] = event.target.value;
+            }
+        }
+
+        function handleAddOtherControl() {
+            deselectNaOption();
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            if (!answer.otherControls) {
+                answer.otherControls = [];
+            }
+            answer.otherControls.push('');
+            renderAssessment();
+        }
+
+        function handleRemoveOtherControl(index) {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            if (answer && answer.otherControls && answer.otherControls.length > index) {
+                answer.otherControls.splice(index, 1);
+                renderAssessment();
+            }
+        }
+        
+        function appendControlSpecification(event, controlId, suggestionText) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+
+            if (!answer.controlSpecifications) {
+                answer.controlSpecifications = {};
+            }
+
+            const currentText = answer.controlSpecifications[controlId] || '';
+            // Append with a newline if there's already text. Add a bullet point for structure.
+            const newText = currentText ? `${currentText.trim()}\n- ${suggestionText}` : `- ${suggestionText}`;
+            answer.controlSpecifications[controlId] = newText;
+            
+            renderAssessment(); // Re-render to show the updated textarea
+        }
+
+        function handleControlSpecificationChange(event, controlId) {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            if (answer) {
+                if (!answer.controlSpecifications) {
+                    answer.controlSpecifications = {};
+                }
+                answer.controlSpecifications[controlId] = event.target.value;
+            }
+        }
+
+        function handleAddHarmSpecification() {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            if (answer) {
+                if (!answer.harmSpecifications) {
+                    answer.harmSpecifications = [];
+                }
+                answer.harmSpecifications.push('');
+                renderAssessment();
+            }
+        }
+
+        function handleRemoveHarmSpecification(index) {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            if (answer && answer.harmSpecifications && answer.harmSpecifications.length > index) {
+                answer.harmSpecifications.splice(index, 1);
+                renderAssessment();
+            }
+        }
+
+        function handleHarmSpecificationChange(event, index) {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            if (answer && answer.harmSpecifications && answer.harmSpecifications.length > index) {
+                answer.harmSpecifications[index] = event.target.value;
+            }
+        }
+
+        function handleNoHarmReasonChange(event) {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const answer = getOrCreateAnswer(answerKey);
+            if (answer) {
+                answer.noHarmReason = event.target.value;
+            }
+        }
+
+        function closeModal() {
+            modalContainer.classList.add('hidden');
+            modalContainer.innerHTML = '';
+        }
+        
+        function calculateOverallProgress() {
+            const totalSituations = assessmentData.domains.reduce((acc, domain) => acc + domain.situations.length, 0);
+            const answeredSituations = Object.keys(appState.answers).filter(key => {
+                const ans = appState.answers[key];
+                // A situation is considered answered if the harm question is answered.
+                return ans && ans.causesHarm !== null;
+            }).length;
+            const percentage = totalSituations > 0 ? (answeredSituations / totalSituations) * 100 : 0;
+            return { answeredSituations, totalSituations, percentage };
+        }
+
+        function generateReportAnalysis() {
+            // Defensive check: Ensure all selectedControls are Sets right before analysis.
+            if (appState.answers) {
+                for (const key in appState.answers) {
+                    if (Object.hasOwnProperty.call(appState.answers, key)) {
+                        const answer = appState.answers[key];
+                        if (answer && answer.selectedControls && !(answer.selectedControls instanceof Set)) {
+                            answer.selectedControls = new Set(answer.selectedControls);
+                        }
+                    }
+                }
+            }
+            
+            const allSelectedControls = new Set();
+            Object.values(appState.answers).forEach(answer => {
+                if (answer.selectedControls) {
+                    answer.selectedControls.forEach(controlId => allSelectedControls.add(controlId));
+                }
+            });
+
+            let hasFoundCSO = false;
+            let hasFoundDCB = false;
+            let hasFoundDTAC = false;
+
+            Object.values(appState.answers).forEach(answer => {
+                if (answer.controlSpecifications) {
+                    if (answer.controlSpecifications['WF_CAPACITY'] && answer.controlSpecifications['WF_CAPACITY'].toLowerCase().includes('cso')) {
+                        hasFoundCSO = true;
+                    }
+                    if (answer.controlSpecifications['ORG_PROCESSES']) {
+                        if (answer.controlSpecifications['ORG_PROCESSES'].toLowerCase().includes('dcb0160')) {
+                            hasFoundDCB = true;
+                        }
+                        if (answer.controlSpecifications['ORG_PROCESSES'].toLowerCase().includes('dtac')) {
+                            hasFoundDTAC = true;
+                        }
+                    }
+                }
+            });
+
+            const mandatoryChecks = {
+                'Information asset register': {
+                    status: allSelectedControls.has('EVAL_ASSET_REG') ? 'Confirmed' : 'Gap Identified'
+                },
+                'Clinical Safety Officer (CSO) Oversight': {
+                    status: hasFoundCSO ? 'Confirmed' : 'Potentially Non-compliant'
+                },
+                'DCB 0160 Compliance': {
+                    status: hasFoundDCB ? 'Confirmed' : 'Potentially Non-compliant'
+                },
+                'Digital Technology Assessment Criteria (DTAC)': {
+                    status: hasFoundDTAC ? 'Confirmed' : 'Potentially Non-compliant'
+                }
+            };
+
+            const mandatoryComplianceStatus = {};
+            Object.entries(mandatoryChecks).forEach(([key, value]) => {
+                mandatoryComplianceStatus[key] = { status: value.status };
+            });
+            
+            let mandatoryComplianceExplanation = 'For any AI tool used in a clinical setting within the UK, certain safety and compliance standards are mandatory. This section checks whether these specific controls were detailed during the assessment. A status of "Potentially Non-compliant" indicates that the specific mandatory item (e.g., CSO, DCB0160) was not detailed in any of your answers and should be reviewed.';
+
+
+            const dontKnowHarmSituations = [];
+            const specifiedHarms = [];
+            const noAwarenessSituations = [];
+            const incompleteControlsSituations = [];
+            const strengthsControls = new Set();
+
+            const domainAnalysis = assessmentData.domains.map(domain => {
+                let detailHtml = domain.situations.map(situation => {
+                    const answerKey = `d${domain.id}-s${situation.id}`;
+                    const answer = appState.answers[answerKey];
+
+                    // --- Build HTML for this situation ---
+                    let situationHtml = `<div class="p-4 border-b page-break-avoid">`;
+                    situationHtml += `<h4 class="font-semibold">${situation.title}</h4>`;
+                    
+                    if (!answer) {
+                        situationHtml += `<p class="text-sm text-yellow-800 font-medium mt-1 bg-yellow-50 p-2 rounded">This situation has not yet been assessed.</p></div>`;
+                        return situationHtml;
+                    }
+
+                    // Section: Harm Assessment
+                    situationHtml += `<div class="mt-2 pl-4 border-l-2">`;
+                    situationHtml += `<p class="text-sm font-medium text-gray-600">Could this credibly cause harm?</p>`;
+                    if (answer.causesHarm === 'yes') {
+                        situationHtml += `<p class="text-sm text-gray-800"><strong>Response:</strong> Yes</p>`;
+                        if (answer.harmSpecifications && answer.harmSpecifications.filter(s => s.trim() !== '').length > 0) {
+                            situationHtml += `<p class="text-sm text-gray-800 mt-1"><strong>Specified Harms:</strong></p><ul class="list-disc list-inside text-sm text-gray-600">`;
+                            answer.harmSpecifications.forEach(spec => {
+                                if (spec.trim()) {
+                                    situationHtml += `<li>${spec}</li>`;
+                                    specifiedHarms.push({situation: situation.title, harm: spec});
+                                }
+                            });
+                            situationHtml += `</ul>`;
+                        }
+                    } else if (answer.causesHarm === 'no') {
+                        situationHtml += `<p class="text-sm text-gray-800"><strong>Response:</strong> No</p>`;
+                        if (answer.noHarmReason) {
+                            situationHtml += `<p class="text-sm text-gray-600 mt-1"><strong>Justification:</strong> ${answer.noHarmReason}</p>`;
+                        }
+                    } else if (answer.causesHarm === 'dont_know') {
+                        dontKnowHarmSituations.push(situation.title);
+                        situationHtml += `<p class="text-sm text-red-600 font-semibold"><strong>Response:</strong> Don't know</p>`;
+                    } else {
+                         situationHtml += `<p class="text-sm text-gray-500 italic">Not answered.</p>`;
+                    }
+                    situationHtml += `</div>`;
+
+
+                    // Section: Controls Assessment
+                    situationHtml += `<div class="mt-3 pl-4 border-l-2">`;
+                    situationHtml += `<p class="text-sm font-medium text-gray-600">Do you have controls in place?</p>`;
+
+                    if (answer.aware === 'na') {
+                         situationHtml += `<p class="text-sm text-gray-800"><strong>Response:</strong> We do not need controls for this.</p>`;
+                         if (answer.naReason) {
+                            situationHtml += `<p class="text-sm text-gray-600 mt-1"><strong>Justification:</strong> ${answer.naReason}</p>`;
+                         }
+                    } else {
+                        const allControlIds = situation.controls;
+                        const selectedControlIds = allControlIds.filter(id => answer.selectedControls && answer.selectedControls.has(id));
+                        const otherControls = (answer.otherControls || []).filter(c => c.trim() !== '');
+                        const hasOtherControl = otherControls.length > 0;
+                        
+                        if (selectedControlIds.length === 0 && !hasOtherControl) {
+                             noAwarenessSituations.push(situation.title);
+                             situationHtml += `<p class="text-sm text-red-600 font-semibold"><strong>Response:</strong> No controls were identified for this cause.</p>`;
+                        } else {
+                            situationHtml += `<p class="text-sm text-gray-800"><strong>Response:</strong> Yes, we have controls in place for this.</p>`;
+                            const unselectedControlIds = allControlIds.filter(id => !(answer.selectedControls && answer.selectedControls.has(id)));
+
+                            selectedControlIds.forEach(id => strengthsControls.add(controlLibrary[id].text));
+                            if (unselectedControlIds.length > 0) {
+                                incompleteControlsSituations.push(situation.title);
+                            }
+
+                            if (selectedControlIds.length > 0) {
+                                situationHtml += '<p class="text-sm text-green-700 mt-2">Controls in place:</p><ul class="list-disc list-inside text-sm text-gray-600">';
+                                selectedControlIds.forEach(id => {
+                                    const specText = (answer.controlSpecifications && answer.controlSpecifications[id]) || '';
+                                    situationHtml += `<li>${controlLibrary[id].text}`;
+                                    if (specText.trim()) {
+                                        situationHtml += `<p class="text-xs text-gray-500 pl-4 italic"><strong>Specification:</strong> ${specText}</p>`;
+                                        strengthsControls.add(`${controlLibrary[id].text}: ${specText}`);
+                                    }
+                                    situationHtml += `</li>`;
+                                });
+                                situationHtml += '</ul>';
+                            }
+                            
+                            // Other controls
+                            if (hasOtherControl) {
+                                situationHtml += '<p class="text-sm text-green-700 mt-2">Other specified controls:</p><ul class="list-disc list-inside text-sm text-gray-600">';
+                                otherControls.forEach(controlText => {
+                                    situationHtml += `<li>${controlText}</li>`;
+                                    strengthsControls.add(controlText + " (User Specified)");
+                                });
+                                situationHtml += '</ul>';
+                            }
+                            
+                            if (unselectedControlIds.length > 0) {
+                                situationHtml += '<p class="text-sm text-yellow-700 mt-2">Controls not selected (for consideration):</p><ul class="list-disc list-inside text-sm text-gray-600">';
+                                unselectedControlIds.forEach(id => {
+                                    situationHtml += `<li>${controlLibrary[id].text} <a href="#" onclick="event.preventDefault(); showReferencePageFromReport('${id}');" class="text-blue-600 hover:underline">[Find out more]</a></li>`;
+                                });
+                                situationHtml += '</ul>';
+                            }
+                        }
+                    }
+
+                    situationHtml += `</div></div>`; // Close controls assessment and main situation div
+                    return situationHtml;
+                }).join('');
+                return { name: `${domain.id+1}. ${domain.name}`, detailHtml };
+            });
+            
+            const mandatoryCompliance = {
+                checks: mandatoryComplianceStatus,
+                explanation: mandatoryComplianceExplanation
+            };
+            
+            // Build prioritized insights
+            const analysisInsights = [];
+            if (dontKnowHarmSituations.length > 0) {
+                let recommendationHtml = '';
+                if (dontKnowHarmSituations.length > 0) {
+                     recommendationHtml += `<p class="font-semibold mt-2">Uncertainty of Harm:</p><ul class="list-disc list-inside">${dontKnowHarmSituations.map(s => `<li>${s}</li>`).join('')}</ul>`;
+                }
+
+                analysisInsights.push({
+                    priority: 1,
+                    title: "Priority 1: High-Risk Areas (Harm Uncertainty)",
+                    observation: "The assessment has highlighted areas where harm is uncertain ('Don't know'). These represent significant risks that require immediate investigation to understand the potential impact and ensure adequate controls are in place.",
+                    recommendation: recommendationHtml
+                });
+            }
+            if (noAwarenessSituations.length > 0) {
+                analysisInsights.push({
+                    priority: 1,
+                    title: "Priority 1: Areas for Immediate Review (No Controls Identified)",
+                    observation: "The following Causes were marked as having no controls in place. These represent the most significant potential gaps in preparedness and should be reviewed as a priority.",
+                    recommendation: `<ul class="list-disc list-inside">${noAwarenessSituations.map(s => `<li>${s}</li>`).join('')}</ul>`
+                });
+            }
+            if (incompleteControlsSituations.length > 0) {
+                 analysisInsights.push({
+                    priority: 2,
+                    title: "Priority 2: Areas for Further Consideration",
+                    observation: "For the following Causes, you indicated some controls are in place but did not select all of the listed examples. These areas may benefit from a review to determine if additional controls are required to mitigate risk to an acceptable level.",
+                    recommendation: `<ul class="list-disc list-inside">${incompleteControlsSituations.map(s => `<li>${s}</li>`).join('')}</ul>`
+                });
+            }
+             analysisInsights.push({
+                    priority: 3,
+                    title: "Evidence of Readiness",
+                    observation: "This assessment has identified a number of controls that you currently have in place. These form the foundation of your organisation's AI readiness.",
+                    recommendation: `<ul class="list-disc list-inside">${Array.from(strengthsControls).map(s => `<li>${s}</li>`).join('')}</ul><p class="mt-2">You can find out more about each of these controls and others in the reference section.</p>`
+                });
+
+
+            return { score: 0, mandatoryCompliance, domainAnalysis, analysisInsights, numberOfStrengths: strengthsControls.size };
+        }
+        
+        async function downloadPDF(elementId, baseFileName) {
+            const reportElement = document.getElementById(elementId);
+            if (!reportElement) return;
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'p',
+                unit: 'pt',
+                format: 'a4'
+            });
+
+            // Store original styles to revert them later
+            const originalWidth = reportElement.style.width;
+            const originalMaxWidth = reportElement.style.maxWidth;
+
+            // Temporarily set a fixed width for consistent rendering by html2canvas
+            const renderWidth = 1024;
+            reportElement.style.width = `${renderWidth}px`;
+            reportElement.style.maxWidth = `${renderWidth}px`;
+
+            // Temporarily add a class for PDF export styling
+            reportElement.classList.add('pdf-export');
+            
+            // Define CSS for print/PDF to help with page breaks
+            const style = document.createElement('style');
+            style.innerHTML = `
+                .pdf-export .page-break-avoid { page-break-inside: avoid !important; }
+            `;
+            document.head.appendChild(style);
+
+            // Calculate the scale to fit the element to the PDF width
+            const pdfWidth = pdf.internal.pageSize.getWidth() - 80; // 40pt margin left & right
+            const scale = pdfWidth / renderWidth;
+
+            await pdf.html(reportElement, {
+                callback: function (doc) {
+                    const timestamp = new Date().toISOString().replace(/:/g, '-').slice(0, 19);
+                    doc.save(`${baseFileName}-${timestamp}.pdf`);
+                    
+                    // Revert styles to original
+                    reportElement.style.width = originalWidth;
+                    reportElement.style.maxWidth = originalMaxWidth;
+
+                    // Cleanup class and style tag
+                    reportElement.classList.remove('pdf-export');
+                    document.head.removeChild(style);
+                },
+                margin: [40, 40, 40, 40],
+                autoPaging: 'slice',
+                html2canvas: {
+                    scale: scale,
+                    useCORS: true,
+                    width: renderWidth,
+                    windowWidth: renderWidth
+                }
+            });
+        }
+
+        /**
+         * Generates and downloads a PDF of all situations and controls.
+         */
+        async function downloadAssessmentGuidePDF() {
+            const now = new Date();
+            const timestamp = `${now.toLocaleDateString('en-GB')} at ${now.toLocaleTimeString('en-GB')}`;
+
+            let situationsHtml = '';
+            assessmentData.domains.forEach(domain => {
+                situationsHtml += `<h3 class="text-lg font-bold mt-6 mb-2 p-2 bg-gray-100">${domain.name}</h3>`;
+                domain.situations.forEach(situation => {
+                    situationsHtml += `<p class="border-b py-2">${domain.id + 1}.${situation.id + 1}: ${situation.title}</p>`;
+                });
+            });
+
+            const controlsHtml = Object.entries(controlLibrary).map(([id, control]) => {
+                const mandatoryIndicator = control.mandatory ? '<span class="text-red-500 font-bold ml-1">*</span>' : '';
+                return `
+                    <div class="py-2 border-b page-break-avoid">
+                        <p class="font-semibold">${control.text}${mandatoryIndicator}</p>
+                        <p class="text-sm text-gray-600">${control.tooltip}</p>
+                    </div>
+                `;
+            }).join('');
+
+            const content = `
+                <div id="guide-content" class="bg-white p-8">
+                    <h1 class="text-2xl font-bold mb-2">AI Readiness Assessment Guide</h1>
+                    <p class="text-sm text-gray-500">This document contains all the Causes and potential controls included in the assessment.</p>
+                    
+                    <div class="border-t mt-4 pt-4 text-xs text-gray-500">
+                        <p>Document generated by AI Readiness Tool v3.0</p>
+                        <p>Timestamp: ${now.toISOString()}</p>
+                        <p>User: ${appState.email || 'anonymous'}</p>
+                    </div>
+
+                    <h2 class="text-xl font-bold mt-8 mb-4 border-b pb-2">Causes by Domain</h2>
+                    ${situationsHtml}
+                    
+                    <h2 class="text-xl font-bold mt-8 mb-4 border-b pb-2">Full Control Library</h2>
+                    ${controlsHtml}
+                </div>
+            `;
+            
+            // Create a temporary element to render for PDF generation
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.width = '1200px'; // Fixed width for consistent rendering
+            tempContainer.innerHTML = content;
+            document.body.appendChild(tempContainer);
+            
+            await downloadPDF('guide-content', 'AI-Readiness-Guide');
+            
+            document.body.removeChild(tempContainer);
+        }
+
+        // --- VALIDATION HELPERS ---
+        function validateEmail(email) {
+            const re = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+            return re.test(String(email).toLowerCase());
+        }
+        
+        function deselectNaOption() {
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            if (appState.answers[answerKey] && appState.answers[answerKey].aware === 'na') {
+                appState.answers[answerKey].aware = null;
+                appState.answers[answerKey].naReason = '';
+            }
+        }
+        
+        function validateCurrentStep() {
+            let isValid = true;
+            const answerKey = `d${appState.currentDomainId}-s${appState.currentSituationIndex}`;
+            const currentAnswer = appState.answers[answerKey];
+            
+            // Reset errors
+            const harmErrorEl = document.getElementById('causes-harm-error');
+            if (harmErrorEl) harmErrorEl.classList.add('hidden');
+            
+            const naReasonErrorEl = document.getElementById('na-reason-error');
+            const naTextareaEl = document.getElementById('na-reason-input');
+            if (naReasonErrorEl) naReasonErrorEl.classList.add('hidden');
+            if (naTextareaEl) naTextareaEl.classList.remove('border-red-500');
+
+            // Check 1: Harm question must be answered
+            if (!currentAnswer || currentAnswer.causesHarm === null) {
+                if (harmErrorEl) harmErrorEl.classList.remove('hidden');
+                isValid = false;
+            }
+
+            // Check 2: If 'NA' for controls, justification is mandatory
+            if (currentAnswer && currentAnswer.aware === 'na' && (!currentAnswer.naReason || !currentAnswer.naReason.trim())) {
+                if (naReasonErrorEl) naReasonErrorEl.classList.remove('hidden');
+                if (naTextareaEl) naTextareaEl.classList.add('border-red-500');
+                if (isValid) naTextareaEl.focus(); // Only focus if first validation passed
+                isValid = false;
+            }
+            
+            return isValid;
+        }
+
+        // --- INITIALIZATION ---
+        
+        /**
+         * A robust safeguard to ensure answer data is correctly structured before use,
+         * especially after being loaded from localStorage.
+         */
+        function ensureAnswersAreHydrated() {
+            if (!appState.answers) {
+                appState.answers = {};
+                return;
+            }
+            Object.values(appState.answers).forEach(answer => {
+                if (answer && answer.selectedControls && !(answer.selectedControls instanceof Set)) {
+                    // If it's an array (from JSON.parse), convert it back to a Set.
+                    answer.selectedControls = new Set(answer.selectedControls);
+                } else if (answer && !answer.selectedControls) {
+                    // If it's missing entirely, initialize it as an empty set.
+                    answer.selectedControls = new Set();
+                }
+            });
+        }
+
+
+        function init() {
+            const savedState = localStorage.getItem('hpatState');
+            if (savedState) {
+                try {
+                    const parsedState = JSON.parse(savedState);
+                    // Overwrite the default appState with the loaded state
+                    Object.assign(appState, parsedState);
+                    
+                    // Crucially, ensure the loaded answers are correctly structured
+                    ensureAnswersAreHydrated();
+
+                } catch (e) {
+                    console.error("Failed to parse saved state, starting fresh.", e);
+                    localStorage.removeItem('hpatState');
+                    appState.currentView = 'introduction';
+                }
+            } else {
+                appState.currentView = 'introduction';
+            }
+            
+            window.addEventListener('beforeunload', () => {
+                const stateToSave = { ...appState };
+                stateToSave.answers = {};
+                // Convert Sets to Arrays for JSON serialization
+                Object.entries(appState.answers).forEach(([key, answer]) => {
+                    stateToSave.answers[key] = {
+                        ...answer,
+                        selectedControls: answer.selectedControls ? Array.from(answer.selectedControls) : []
+                    };
+                });
+                localStorage.setItem('hpatState', JSON.stringify(stateToSave));
+            });
+
+            // Router to render the correct view
+            switch (appState.currentView) {
+                case 'introduction':
+                    renderIntroduction();
+                    break;
+                case 'assessment':
+                    renderAssessment();
+                    break;
+                case 'report':
+                    renderReport();
+                    break;
+                case 'reference':
+                    renderReferencePage();
+                    break;
+                case 'causesReference':
+                    renderCausesReferencePage();
+                    break;
+                case 'caseStudy':
+                    renderCaseStudyPage();
+                    break;
+                case 'dashboard':
+                default:
+                    renderDashboard();
+                    break;
+            }
+        }
+
+        // Run the application
+        init();
+
+    </script>
+</body>
+</html>
+
