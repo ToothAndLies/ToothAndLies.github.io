@@ -302,17 +302,17 @@
             const emailDisplay = appState.email || 'Not Provided';
             const institutionDisplay = appState.institution || 'Not Provided';
              mainHeader.innerHTML = `
-                <div class="flex justify-between items-center"> 
-                    <img src="https://github.com/ToothAndLies/ToothAndLies.github.io/blob/main/AI-R.png" alt="AI-R Logo" class="h-16 w-40 object-contain">
-                    <div class="flex flex-col items-end">
-                       <img src="path/to/your/partner-logos.png" alt="Partner Logos" class="h-10 w-80 object-contain mb-2">
+                <div class="flex justify-between items-center">
+                    <div class="h-16 w-40 bg-gray-200 flex items-center justify-center text-gray-500 text-sm rounded">AI-R Logo Placeholder</div>
+                     <div class="flex flex-col items-end">
+                        <div class="h-10 w-80 bg-gray-200 flex items-center justify-center text-gray-500 text-sm rounded mb-2">Partner Logos Placeholder</div>
                         <div class="text-right text-sm">
                             <p>${emailDisplay}</p>
                             <p><span class="font-semibold">Organisation:</span> ${institutionDisplay}</p>
+                        </div>
                     </div>
                 </div>
-            </div>
-          `;
+            `;
         }
 
         /**
@@ -2080,4 +2080,3 @@ Following completion of the assessment you will be provided with a report highli
     </script>
 </body>
 </html>
-
