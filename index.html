@@ -624,6 +624,18 @@ Following completion of the assessment you will be provided with a report highli
             
             const tooltipExample = situation.example ? `Example: ${situation.example}` : `e.g., a power failure (cause) could lead to a ventilator stopping (patient harm), or a cyber attack (cause) could lead to the patient record system being unavailable (system harm).`;
 
+            let hasMandatoryItems = false;
+            situation.controls.forEach(controlId => {
+                const control = controlLibrary[controlId];
+                if (control.mandatory) {
+                    hasMandatoryItems = true;
+                }
+                if (control.specifics && control.specifics.some(s => s.text.endsWith('*'))) {
+                    hasMandatoryItems = true;
+                }
+            });
+            const footnoteHtml = hasMandatoryItems ? `<p class="text-xs text-gray-500 text-left pt-4"><span class="text-red-500 font-bold">*</span> This is potentially a legal requirement.</p>` : '';
+
 
             contentArea.innerHTML = `
                 <div class="bg-white shadow-md rounded-lg">
@@ -637,7 +649,7 @@ Following completion of the assessment you will be provided with a report highli
                         <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-6">
                             <h3 class="text-lg font-semibold mb-2">Cause ${domain.id+1}.${situation.id+1}: ${situation.title}</h3>
                             <p class="mb-2">${situation.description}
-                                 <a href="#" class="ml-2 text-blue-500 hover:underline text-sm" onclick="event.preventDefault(); showCausesReferencePage('d${domain.id}-s${situation.id}')">[?]</a>
+                                 <a href="#" class="ml-2 text-blue-500 hover:underline text-sm" onclick="event.preventDefault(); showCausesReferencePage('d${domain.id}-s${situation.id}')">[Reference List]</a>
                             </p>
                         </div>
                         
@@ -732,6 +744,7 @@ Following completion of the assessment you will be provided with a report highli
 
 
                         ${sectionCompleteHtml}
+                        ${footnoteHtml}
                     </div>
                     ${navigationHtml}
                 </div>
@@ -839,14 +852,11 @@ Following completion of the assessment you will be provided with a report highli
 
             const controlsHtml = situation.controls.map(cid => clickableControl(cid)).join('');
             
-            const footnoteHtml = hasMandatorySpecific ? `<p class="text-xs text-gray-500 mt-4">* This is potentially a legal requirement.</p>` : '';
-
             return `
                 <div class="space-y-2 p-4 bg-gray-50 rounded-lg border">
                     ${controlsHtml}
                     ${otherControlSection}
                 </div>
-                ${footnoteHtml}
             `;
         }
         
@@ -929,7 +939,10 @@ Following completion of the assessment you will be provided with a report highli
             const domainHtml = domainAnalysis.map(domain => {
                 return `
                     <div class="mb-8">
-                        <h3 class="text-lg font-bold p-4 bg-gray-100 rounded-t-lg border-b">${domain.name}</h3>
+                        <div class="flex justify-between items-center p-4 bg-gray-100 rounded-t-lg border-b">
+                           <h3 class="text-lg font-bold">${domain.name}</h3>
+                           <a href="#" onclick="event.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' });" class="text-xs text-blue-600 hover:underline">Return to Top ↑</a>
+                        </div>
                         <div>${domain.detailHtml}</div>
                     </div>
                 `;
@@ -937,7 +950,7 @@ Following completion of the assessment you will be provided with a report highli
 
 
             const insightsHtml = analysisInsights.map(insight => `
-                <div class="mb-4 p-4 border-l-4 ${insight.priority === 1 ? 'border-red-500 bg-red-50' : insight.priority === 2 ? 'border-yellow-500 bg-yellow-50' : 'border-green-500 bg-green-50'} rounded-r-lg page-break-avoid">
+                <div class="mb-4 p-4 border-l-4 ${insight.priority === 1 ? 'border-red-500 bg-red-50' : insight.priority === 2 ? 'border-yellow-500 bg-yellow-50' : 'border-blue-500 bg-blue-50'} rounded-r-lg page-break-avoid">
                     <h4 class="font-semibold text-lg">${insight.title}</h4>
                     <p class="text-sm text-gray-600">${insight.observation}</p>
                     <div class="mt-2 text-sm text-gray-800">${insight.recommendation}</div>
@@ -957,7 +970,7 @@ Following completion of the assessment you will be provided with a report highli
                     
                     <div class="mb-8 p-4 bg-gray-50 rounded-lg page-break-avoid">
                         <h3 class="text-lg font-bold mb-2">About this report</h3>
-                        <p class="text-gray-700 mb-4">The required level of organisational preparedness must be proportionate to the level of risk. This report provides a snapshot of your current controls against a range of Causes. The acceptable level of residual risk will vary depending on factors such as the <strong class="text-blue-700">scale</strong> and <strong class="text-blue-700">complexity</strong> of an AI deployment, the number of <strong class="text-blue-700">integrations</strong> with other systems, and your organisation's overall <strong class="text-blue-700">risk appetite</strong>. The following analysis should be interpreted in that context. If you have not completed all sections, this will be highlighted below.</p>
+                        <p class="text-gray-700 mb-4">The required level of organisational preparedness must be proportionate to the level of risk. This report provides a snapshot of your current controls against a range of Causes. The acceptable level of residual risk will vary depending on factors such as the <strong class="text-blue-700">scale</strong>, <strong class="text-blue-700">complexity</strong>, and <strong class="text-blue-700">impact</strong> of an AI deployment, the number of <strong class="text-blue-700">integrations</strong> with other systems, and your organisation's overall <strong class="text-blue-700">risk appetite</strong>. The following analysis should be interpreted in that context. If you have not completed all sections, this will be highlighted below.</p>
                         <div class="border-t pt-4">
                             <h4 class="font-semibold text-gray-800">Assessment Details:</h4>
                             <ul class="list-disc list-inside text-sm text-gray-600 mt-2 space-y-1">
@@ -967,7 +980,10 @@ Following completion of the assessment you will be provided with a report highli
                     </div>
 
                     <div class="mb-8 page-break-avoid">
-                        <h3 class="text-lg font-bold mb-2">1. Mandatory Compliance Status</h3>
+                        <div class="flex justify-between items-center mb-2">
+                           <h3 class="text-lg font-bold">1. Mandatory Compliance Status</h3>
+                           <a href="#" onclick="event.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' });" class="text-xs text-blue-600 hover:underline">Return to Top ↑</a>
+                        </div>
                         <p class="text-sm text-gray-600 mb-2">${mandatoryCompliance.explanation}</p>
                         ${mandatoryRows.length > 0 ? `
                         <table class="w-full text-left border rounded-lg">
@@ -981,12 +997,18 @@ Following completion of the assessment you will be provided with a report highli
                     </div>
 
                     <div class="mb-8">
-                        <h3 class="text-lg font-bold mb-2">2. Domain-by-Domain Analysis</h3>
+                        <div class="flex justify-between items-center mb-2">
+                           <h3 class="text-lg font-bold">2. Domain-by-Domain Analysis</h3>
+                           <a href="#" onclick="event.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' });" class="text-xs text-blue-600 hover:underline">Return to Top ↑</a>
+                        </div>
                         ${domainHtml}
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-bold mb-2">3. Insights & Recommendations</h3>
+                        <div class="flex justify-between items-center mb-2">
+                           <h3 class="text-lg font-bold">3. Insights</h3>
+                           <a href="#" onclick="event.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' });" class="text-xs text-blue-600 hover:underline">Return to Top ↑</a>
+                        </div>
                         <div class="space-y-4">${insightsHtml}</div>
                     </div>
 
@@ -998,6 +1020,7 @@ Following completion of the assessment you will be provided with a report highli
                 </div>
                  <div class="mt-8 text-center">
                     <button class="btn btn-secondary" onclick="renderDashboard()">Back to Dashboard</button>
+                    <a href="#" onclick="event.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' });" class="ml-4 text-sm text-blue-600 hover:underline">Go to Top ↑</a>
                 </div>
             `;
         }
@@ -1074,7 +1097,7 @@ Following completion of the assessment you will be provided with a report highli
                 `;
             }).join('');
 
-            const footnoteHtml = pageHasMandatory ? `<p class="text-xs text-gray-500 mt-4">* This is potentially a legal requirement.</p>` : '';
+            const footnoteHtml = pageHasMandatory ? `<p class="text-xs text-gray-500 mt-4"><span class="text-red-500 font-bold">*</span> This is potentially a legal requirement.</p>` : '';
 
             contentArea.innerHTML = `
                  <div class="bg-white shadow-md rounded-lg p-6">
@@ -1822,7 +1845,7 @@ Following completion of the assessment you will be provided with a report highli
             }
              analysisInsights.push({
                     priority: 3,
-                    title: "Evidence of Readiness",
+                    title: "Existing controls supporting AI Readiness",
                     observation: "This assessment has identified a number of controls that you currently have in place. These form the foundation of your organisation's AI readiness.",
                     recommendation: `<ul class="list-disc list-inside">${Array.from(strengthsControls).map(s => `<li>${s}</li>`).join('')}</ul><p class="mt-2">You can find out more about each of these controls and others in the reference section.</p>`
                 });
@@ -2080,3 +2103,4 @@ Following completion of the assessment you will be provided with a report highli
     </script>
 </body>
 </html>
+
