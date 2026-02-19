@@ -1291,8 +1291,6 @@ Following completion of the assessment you will be provided with a report highli
             clearTimeout(debounceTimeout);
             const resultsContainer = document.getElementById('institution-search-results');
             if (!resultsContainer) return;
-        }
-
             if (query.length < 3) {
                 resultsContainer.innerHTML = '';
                 resultsContainer.classList.add('hidden');
